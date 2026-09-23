@@ -1,0 +1,17 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - vendor/nesbot/carbon/extension.neon
+
+parameters:
+    paths:
+        - app/
+        - bootstrap/app.php
+        - config/
+        - database/
+        - routes/
+
+    level: 7
+
+    # Models use the modern casts() method (Laravel 12+ convention);
+    # teach Larastan to read them instead of falling back to raw DB types.
+    parseModelCastsMethod: true
