@@ -77,8 +77,14 @@ test('users without permission cannot view purchases', function () {
     $this->get(route('purchases.index'))->assertForbidden();
 });
 
-test('users with view permission can visit the index', function () {
+test('users with view permission cannot visit the index', function () {
     $this->actingAs(purchaseUser(['inventory.view']));
+
+    $this->get(route('purchases.index'))->assertForbidden();
+});
+
+test('users with purchase permission can visit the index', function () {
+    $this->actingAs(purchaseUser(['inventory.purchase']));
 
     $this->get(route('purchases.index'))
         ->assertOk()

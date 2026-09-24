@@ -412,6 +412,7 @@ export type PosProduct = {
     name: string;
     sku: string;
     barcode: string | null;
+    category: { id: number | null; name: string };
     selling_price: number;
     track_inventory: boolean;
     unit: string;

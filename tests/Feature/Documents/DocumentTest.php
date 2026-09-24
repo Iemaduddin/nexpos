@@ -98,15 +98,22 @@ test('non-image uploads are rejected', function () {
     ])->assertSessionHasErrors('file');
 });
 
-test('show and private file need permission', function () {
+test('index, show and private file need purchase permission', function () {
     fakeOcr();
     $document = uploadedDocument($this);
 
     $this->actingAs(documentUser(['inventory.view']));
+    $this->get(route('documents.index'))->assertForbidden();
+    $this->get(route('documents.show', $document))->assertForbidden();
+    $this->get(route('documents.file', $document))->assertForbidden();
+
+    $this->actingAs(documentUser(['inventory.purchase']));
+    $this->get(route('documents.index'))->assertOk();
     $this->get(route('documents.show', $document))->assertOk();
     $this->get(route('documents.file', $document))->assertOk();
 
     $this->actingAs(User::factory()->create());
+    $this->get(route('documents.index'))->assertForbidden();
     $this->get(route('documents.show', $document))->assertForbidden();
     $this->get(route('documents.file', $document))->assertForbidden();
 });

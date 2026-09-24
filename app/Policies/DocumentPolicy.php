@@ -12,7 +12,7 @@ class DocumentPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->can('inventory.view');
+        return $user->can('inventory.purchase');
     }
 
     /**
@@ -20,7 +20,7 @@ class DocumentPolicy
      */
     public function view(User $user, Document $document): bool
     {
-        return $user->can('inventory.view');
+        return $user->can('inventory.purchase');
     }
 
     /**

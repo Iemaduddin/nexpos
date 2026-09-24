@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import {
     BarChart3,
     Bot,
@@ -10,6 +10,7 @@ import {
     ReceiptText,
     Ruler,
     Settings,
+    ShieldCheck,
     ShoppingCart,
     Tags,
     Award,
@@ -35,6 +36,8 @@ import { index as aiIndex } from '@/actions/App/Http/Controllers/AiChatControlle
 import { index as documentsIndex } from '@/actions/App/Http/Controllers/DocumentController';
 import { index as suppliersIndex } from '@/actions/App/Http/Controllers/SupplierController';
 import { index as unitsIndex } from '@/actions/App/Http/Controllers/UnitController';
+import { index as usersIndex } from '@/actions/App/Http/Controllers/UserController';
+import { index as rolesIndex } from '@/routes/roles';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -69,21 +72,25 @@ const navGroups: SidebarNavGroup[] = [
                 title: 'Kasir',
                 href: posIndex(),
                 icon: ShoppingCart,
+                permission: 'sales.create',
             },
             {
                 title: 'Riwayat Penjualan',
                 href: salesIndex(),
                 icon: ReceiptText,
+                permission: 'sales.view',
             },
             {
                 title: 'Retur & Refund',
                 href: returnsIndex(),
                 icon: Undo2,
+                permission: 'sales.view',
             },
             {
                 title: 'Sesi Kas',
                 href: sessionsIndex(),
                 icon: Wallet,
+                permission: 'sales.view',
             },
         ],
     },
@@ -94,36 +101,43 @@ const navGroups: SidebarNavGroup[] = [
                 title: 'Produk',
                 href: productsIndex(),
                 icon: Package,
+                permission: 'products.view',
             },
             {
                 title: 'Kategori',
                 href: categoriesIndex(),
                 icon: Tags,
+                permission: 'products.manage',
             },
             {
                 title: 'Brand',
                 href: brandsIndex(),
                 icon: Award,
+                permission: 'products.manage',
             },
             {
                 title: 'Satuan',
                 href: unitsIndex(),
                 icon: Ruler,
+                permission: 'products.manage',
             },
             {
                 title: 'Stok & Opname',
                 href: adjustmentsIndex(),
                 icon: Boxes,
+                permission: 'inventory.adjust',
             },
             {
                 title: 'Pembelian',
                 href: purchasesIndex(),
                 icon: Truck,
+                permission: 'inventory.purchase',
             },
             {
                 title: 'Dokumen',
                 href: documentsIndex(),
                 icon: FileScan,
+                permission: 'inventory.purchase',
             },
         ],
     },
@@ -134,11 +148,30 @@ const navGroups: SidebarNavGroup[] = [
                 title: 'Pelanggan',
                 href: customersIndex(),
                 icon: Users,
+                permission: 'customers.view',
             },
             {
                 title: 'Supplier',
                 href: suppliersIndex(),
                 icon: Building2,
+                permission: 'suppliers.view',
+            },
+        ],
+    },
+    {
+        label: 'Pengguna',
+        items: [
+            {
+                title: 'Pengguna',
+                href: usersIndex(),
+                icon: Users,
+                permission: 'users.manage',
+            },
+            {
+                title: 'Peran & Izin',
+                href: rolesIndex(),
+                icon: ShieldCheck,
+                permission: 'users.manage',
             },
         ],
     },
@@ -149,11 +182,13 @@ const navGroups: SidebarNavGroup[] = [
                 title: 'Laporan',
                 href: reportsIndex(),
                 icon: BarChart3,
+                permission: 'reports.view',
             },
             {
                 title: 'AI Asisten',
                 href: aiIndex(),
                 icon: Bot,
+                permission: 'ai.use',
             },
             {
                 title: 'Pengaturan',
@@ -165,6 +200,18 @@ const navGroups: SidebarNavGroup[] = [
 ];
 
 export function AppSidebar() {
+    const { auth } = usePage().props;
+    const visibleGroups = navGroups
+        .map((group) => ({
+            ...group,
+            items: group.items.filter(
+                (item) =>
+                    !item.permission ||
+                    auth.permissions.includes(item.permission),
+            ),
+        }))
+        .filter((group) => group.items.length > 0);
+
     return (
         <Sidebar collapsible="icon" variant="inset" className="print:hidden">
             <SidebarHeader>
@@ -180,7 +227,7 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain groups={navGroups} />
+                <NavMain groups={visibleGroups} />
             </SidebarContent>
 
             <SidebarFooter>

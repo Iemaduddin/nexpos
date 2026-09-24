@@ -317,3 +317,20 @@ test('only users with discount permission can discount', function () {
         ->assertRedirect();
     expect(Sale::latest('id')->firstOrFail()->grand_total)->toBe(54000);
 });
+
+test('pos payload includes product category for filtering', function () {
+    $this->actingAs(posUser(['sales.create']));
+    $master = posMasterData();
+
+    $this->get(route('pos.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('pos/index')
+            ->has('products', 1)
+            ->where('products.0.id', $master['product']->id)
+            ->where(
+                'products.0.category.name',
+                $master['product']->category->name
+            )
+        );
+});

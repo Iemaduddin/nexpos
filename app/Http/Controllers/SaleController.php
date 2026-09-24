@@ -60,9 +60,9 @@ class SaleController extends Controller
 
         $products = Product::query()
             ->where('is_active', true)
-            ->with(['variants' => fn ($q) => $q->where('is_active', true), 'unit:id,symbol'])
+            ->with(['variants' => fn ($q) => $q->where('is_active', true), 'unit:id,symbol', 'category:id,name'])
             ->orderBy('name')
-            ->get(['id', 'name', 'sku', 'barcode', 'selling_price', 'track_inventory', 'unit_id']);
+            ->get(['id', 'name', 'sku', 'barcode', 'selling_price', 'track_inventory', 'unit_id', 'category_id']);
 
         $levels = StockLevel::query()
             ->where('store_id', $store->id)
@@ -95,6 +95,7 @@ class SaleController extends Controller
                 'name' => $p->name,
                 'sku' => $p->sku,
                 'barcode' => $p->barcode,
+                'category' => ['id' => $p->category_id, 'name' => $p->category?->name ?? 'Tanpa kategori'],
                 'selling_price' => $p->selling_price,
                 'track_inventory' => $p->track_inventory,
                 'unit' => $p->unit->symbol,

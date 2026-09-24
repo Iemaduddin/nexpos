@@ -6,6 +6,7 @@ import FormSelect from '@/components/form-select';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -150,28 +151,22 @@ export default function PurchaseForm({
                                     <Label htmlFor="discount">
                                         Diskon (Rp)
                                     </Label>
-                                    <Input
+                                    <CurrencyInput
                                         id="discount"
                                         name="discount"
-                                        type="number"
-                                        min={0}
                                         value={discount}
-                                        onChange={(e) =>
-                                            setDiscount(e.target.value)
-                                        }
+                                        onValueChange={setDiscount}
                                         className="tabular-nums"
                                     />
                                     <InputError message={errors.discount} />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="tax">Pajak (Rp)</Label>
-                                    <Input
+                                    <CurrencyInput
                                         id="tax"
                                         name="tax"
-                                        type="number"
-                                        min={0}
                                         value={tax}
-                                        onChange={(e) => setTax(e.target.value)}
+                                        onValueChange={setTax}
                                         className="tabular-nums"
                                     />
                                     <InputError message={errors.tax} />
@@ -363,16 +358,13 @@ export default function PurchaseForm({
                                                 >
                                                     Harga beli (Rp)
                                                 </Label>
-                                                <Input
+                                                <CurrencyInput
                                                     id={`items-${row.key}-cost`}
                                                     name={`items[${i}][cost_price]`}
-                                                    type="number"
-                                                    min={0}
                                                     value={row.cost}
-                                                    onChange={(e) =>
+                                                    onValueChange={(raw) =>
                                                         updateRow(row.key, {
-                                                            cost: e.target
-                                                                .value,
+                                                            cost: raw,
                                                         })
                                                     }
                                                     required

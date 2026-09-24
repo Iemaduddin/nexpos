@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Customer\StoreCustomerRequest;
 use App\Http\Requests\Customer\UpdateCustomerRequest;
 use App\Models\Customer;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -68,6 +69,31 @@ class CustomerController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Pelanggan berhasil ditambahkan.']);
 
         return to_route('customers.index');
+    }
+
+    /**
+     * Tambah pelanggan cepat dari kasir (JSON, tanpa pindah halaman).
+     */
+    public function quickStore(StoreCustomerRequest $request): JsonResponse
+    {
+        Gate::authorize('create', Customer::class);
+
+        $customer = DB::transaction(function () use ($request): Customer {
+            $customer = Customer::create([
+                ...$request->validated(),
+                'code' => 'TMP-'.Str::uuid(),
+            ]);
+
+            $customer->update([
+                'code' => sprintf('C-%s-%04d', now()->format('Ymd'), $customer->id),
+            ]);
+
+            return $customer;
+        });
+
+        return response()->json([
+            'customer' => $customer->only(['id', 'name', 'phone']),
+        ], 201);
     }
 
     /**

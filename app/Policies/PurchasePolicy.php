@@ -12,7 +12,7 @@ class PurchasePolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->can('inventory.view');
+        return $user->can('inventory.purchase');
     }
 
     /**
@@ -20,7 +20,7 @@ class PurchasePolicy
      */
     public function view(User $user, Purchase $purchase): bool
     {
-        return $user->can('inventory.view');
+        return $user->can('inventory.purchase');
     }
 
     /**

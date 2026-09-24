@@ -18,6 +18,8 @@ export type SidebarNavItem = {
     href?: NonNullable<InertiaLinkProps['href']>;
     icon?: LucideIcon | null;
     comingSoon?: boolean;
+    /** Permission yang dibutuhkan agar item tampil. Kosong = tampil untuk semua. */
+    permission?: string;
 };
 
 export type SidebarNavGroup = {

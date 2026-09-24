@@ -7,6 +7,7 @@ import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -63,21 +64,13 @@ function MoneyInput({
 }) {
     return (
         <div className="grid gap-2">
-            <div className="relative">
-                <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
-                    Rp
-                </span>
-                <Input
-                    id={id}
-                    name={name}
-                    type="number"
-                    min={0}
-                    step={1}
-                    defaultValue={defaultValue}
-                    required
-                    className="pl-9 tabular-nums"
-                />
-            </div>
+            <CurrencyInput
+                id={id}
+                name={name}
+                defaultValue={defaultValue}
+                required
+                className="tabular-nums"
+            />
             <InputError message={error} />
         </div>
     );
@@ -514,11 +507,9 @@ export default function ProductForm({
                                             >
                                                 Harga beli (Rp)
                                             </Label>
-                                            <Input
+                                            <CurrencyInput
                                                 id={`variants-${row.key}-cost`}
                                                 name={`variants[${i}][cost_price]`}
-                                                type="number"
-                                                min={0}
                                                 defaultValue={row.cost_price}
                                                 required
                                                 className="tabular-nums"
@@ -537,11 +528,9 @@ export default function ProductForm({
                                             >
                                                 Harga jual (Rp)
                                             </Label>
-                                            <Input
+                                            <CurrencyInput
                                                 id={`variants-${row.key}-price`}
                                                 name={`variants[${i}][selling_price]`}
-                                                type="number"
-                                                min={0}
                                                 defaultValue={row.selling_price}
                                                 required
                                                 className="tabular-nums"

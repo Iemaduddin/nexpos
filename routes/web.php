@@ -57,7 +57,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('anomalies.review');
 
     Route::get('documents', [DocumentController::class, 'index'])
-        ->middleware('permission:inventory.view')
+        ->middleware('permission:inventory.purchase')
         ->name('documents.index');
     Route::get('documents/create', [DocumentController::class, 'create'])
         ->middleware('permission:inventory.purchase')
@@ -66,10 +66,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:inventory.purchase')
         ->name('documents.store');
     Route::get('documents/{document}', [DocumentController::class, 'show'])
-        ->middleware('permission:inventory.view')
+        ->middleware('permission:inventory.purchase')
         ->name('documents.show');
     Route::get('documents/{document}/file', [DocumentController::class, 'file'])
-        ->middleware('permission:inventory.view')
+        ->middleware('permission:inventory.purchase')
         ->name('documents.file');
     Route::get('documents/{document}/verify', [DocumentController::class, 'verify'])
         ->middleware('permission:inventory.purchase')
@@ -87,6 +87,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('customers', [CustomerController::class, 'store'])
         ->middleware('permission:customers.manage')
         ->name('customers.store');
+    Route::post('customers/quick', [CustomerController::class, 'quickStore'])
+        ->middleware('permission:customers.manage')
+        ->name('customers.quick');
     Route::get('customers/{customer}/edit', [CustomerController::class, 'edit'])
         ->middleware('permission:customers.manage')
         ->name('customers.edit');
@@ -136,7 +139,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('stores.destroy');
 
     Route::get('categories', [CategoryController::class, 'index'])
-        ->middleware('permission:products.view')
+        ->middleware('permission:products.manage')
         ->name('categories.index');
     Route::get('categories/create', [CategoryController::class, 'create'])
         ->middleware('permission:products.manage')
@@ -155,7 +158,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('categories.destroy');
 
     Route::get('brands', [BrandController::class, 'index'])
-        ->middleware('permission:products.view')
+        ->middleware('permission:products.manage')
         ->name('brands.index');
     Route::get('brands/create', [BrandController::class, 'create'])
         ->middleware('permission:products.manage')
@@ -174,7 +177,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('brands.destroy');
 
     Route::get('units', [UnitController::class, 'index'])
-        ->middleware('permission:products.view')
+        ->middleware('permission:products.manage')
         ->name('units.index');
     Route::get('units/create', [UnitController::class, 'create'])
         ->middleware('permission:products.manage')
@@ -212,7 +215,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('products.destroy');
 
     Route::get('purchases', [PurchaseController::class, 'index'])
-        ->middleware('permission:inventory.view')
+        ->middleware('permission:inventory.purchase')
         ->name('purchases.index');
     Route::get('purchases/create', [PurchaseController::class, 'create'])
         ->middleware('permission:inventory.purchase')
@@ -221,7 +224,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:inventory.purchase')
         ->name('purchases.store');
     Route::get('purchases/{purchase}', [PurchaseController::class, 'show'])
-        ->middleware('permission:inventory.view')
+        ->middleware('permission:inventory.purchase')
         ->name('purchases.show');
     Route::get('purchases/{purchase}/edit', [PurchaseController::class, 'edit'])
         ->middleware('permission:inventory.purchase')
@@ -246,7 +249,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('purchases.payments');
 
     Route::get('adjustments', [StockAdjustmentController::class, 'index'])
-        ->middleware('permission:inventory.view')
+        ->middleware('permission:inventory.adjust')
         ->name('adjustments.index');
     Route::get('adjustments/create', [StockAdjustmentController::class, 'create'])
         ->middleware('permission:inventory.adjust')
@@ -255,7 +258,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:inventory.adjust')
         ->name('adjustments.store');
     Route::get('adjustments/{adjustment}', [StockAdjustmentController::class, 'show'])
-        ->middleware('permission:inventory.view')
+        ->middleware('permission:inventory.adjust')
         ->name('adjustments.show');
     Route::get('adjustments/{adjustment}/edit', [StockAdjustmentController::class, 'edit'])
         ->middleware('permission:inventory.adjust')

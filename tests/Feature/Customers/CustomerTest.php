@@ -95,3 +95,34 @@ test('a clean customer can be deleted', function () {
 
     $this->assertDatabaseMissing('customers', ['id' => $customer->id]);
 });
+
+test('quick store returns the created customer as JSON without redirect', function () {
+    $this->actingAs(customerUser(['customers.view', 'customers.manage']));
+
+    $response = $this->postJson(route('customers.quick'), [
+        'name' => 'Siti Kasir',
+        'phone' => '081298765432',
+    ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath('customer.name', 'Siti Kasir')
+        ->assertJsonPath('customer.phone', '081298765432');
+
+    $customer = Customer::where('phone', '081298765432')->firstOrFail();
+    expect($customer->code)->toStartWith('C-');
+    expect($response->json('customer.id'))->toBe($customer->id);
+});
+
+test('quick store validates input and enforces permission', function () {
+    $this->actingAs(customerUser(['customers.view', 'customers.manage']));
+
+    $this->postJson(route('customers.quick'), ['name' => ''])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('name');
+
+    $this->actingAs(customerUser(['customers.view']));
+
+    $this->postJson(route('customers.quick'), ['name' => 'Andi'])
+        ->assertForbidden();
+});

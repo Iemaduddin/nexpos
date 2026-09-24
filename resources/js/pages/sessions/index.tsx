@@ -22,6 +22,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -281,11 +282,9 @@ export default function SessionIndex({
                                         <Label htmlFor="closing_actual">
                                             Uang aktual di laci (Rp)
                                         </Label>
-                                        <Input
+                                        <CurrencyInput
                                             id="closing_actual"
                                             name="closing_actual"
-                                            type="number"
-                                            min={0}
                                             required
                                             autoFocus
                                             className="tabular-nums"

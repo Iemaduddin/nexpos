@@ -48,8 +48,14 @@ test('users without permission cannot view categories', function () {
     $this->get(route('categories.index'))->assertForbidden();
 });
 
-test('users with view permission can visit the index', function () {
+test('users with view permission cannot visit the index', function () {
     $this->actingAs(categoryUser(['products.view']));
+
+    $this->get(route('categories.index'))->assertForbidden();
+});
+
+test('users with manage permission can visit the index', function () {
+    $this->actingAs(categoryUser(['products.manage']));
 
     $this->get(route('categories.index'))
         ->assertOk()

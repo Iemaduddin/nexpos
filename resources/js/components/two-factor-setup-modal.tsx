@@ -1,5 +1,4 @@
 import { Form } from '@inertiajs/react';
-import { REGEXP_ONLY_DIGITS } from 'input-otp';
 import { Check, Copy, ScanLine } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AlertError from '@/components/alert-error';
@@ -16,6 +15,7 @@ import {
     InputOTP,
     InputOTPGroup,
     InputOTPSlot,
+    REGEXP_ONLY_DIGITS,
 } from '@/components/ui/input-otp';
 import { Spinner } from '@/components/ui/spinner';
 import { useAppearance } from '@/hooks/use-appearance';

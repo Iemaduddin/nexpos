@@ -48,8 +48,14 @@ test('users without permission cannot view units', function () {
     $this->get(route('units.index'))->assertForbidden();
 });
 
-test('users with view permission can visit the index', function () {
+test('users with view permission cannot visit the index', function () {
     $this->actingAs(unitUser(['products.view']));
+
+    $this->get(route('units.index'))->assertForbidden();
+});
+
+test('users with manage permission can visit the index', function () {
+    $this->actingAs(unitUser(['products.manage']));
 
     $this->get(route('units.index'))
         ->assertOk()

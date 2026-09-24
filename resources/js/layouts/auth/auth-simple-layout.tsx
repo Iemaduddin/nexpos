@@ -1,5 +1,4 @@
 import { Link } from '@inertiajs/react';
-import AppLogoIcon from '@/components/app-logo-icon';
 import { Card, CardContent } from '@/components/ui/card';
 import { home } from '@/routes';
 import type { AuthLayoutProps } from '@/types';
@@ -18,11 +17,18 @@ export default function AuthSimpleLayout({
                         className="flex items-center justify-center gap-2"
                         aria-label="NEXPOS"
                     >
-                        <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                            <AppLogoIcon className="size-5" />
-                        </span>
-                        <span className="text-lg font-semibold tracking-tight">
-                            NEXPOS
+                        <img
+                            src="/logo.webp"
+                            alt="NEXPOS"
+                            className="size-9 rounded-lg object-cover"
+                        />
+                        <span className="flex flex-col items-center leading-tight">
+                            <span className="text-lg font-semibold tracking-tight">
+                                NEXPOS
+                            </span>
+                            <span className="text-[10px] font-medium tracking-[0.2em] text-muted-foreground">
+                                AROBIDSH ID
+                            </span>
                         </span>
                     </Link>
 

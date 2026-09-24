@@ -12,7 +12,7 @@ class BrandPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->can('products.view');
+        return $user->can('products.manage');
     }
 
     /**
@@ -20,7 +20,7 @@ class BrandPolicy
      */
     public function view(User $user, Brand $brand): bool
     {
-        return $user->can('products.view');
+        return $user->can('products.manage');
     }
 
     /**

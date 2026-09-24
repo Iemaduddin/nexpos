@@ -12,7 +12,7 @@ class StockAdjustmentPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->can('inventory.view');
+        return $user->can('inventory.adjust');
     }
 
     /**
@@ -20,7 +20,7 @@ class StockAdjustmentPolicy
      */
     public function view(User $user, StockAdjustment $adjustment): bool
     {
-        return $user->can('inventory.view');
+        return $user->can('inventory.adjust');
     }
 
     /**

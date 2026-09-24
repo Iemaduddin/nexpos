@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePage } from '@inertiajs/react';
 import { Bot } from 'lucide-react';
 import { AppearanceToggle } from '@/components/appearance-toggle';
@@ -8,12 +8,14 @@ import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@/types';
 
-const today = new Intl.DateTimeFormat('id-ID', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-}).format(new Date());
+function formatToday(): string {
+    return new Intl.DateTimeFormat('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    }).format(new Date());
+}
 
 export function AppSidebarHeader({
     breadcrumbs = [],
@@ -21,6 +23,12 @@ export function AppSidebarHeader({
     breadcrumbs?: BreadcrumbItemType[];
 }) {
     const [aiOpen, setAiOpen] = useState(false);
+    // Tanggal hanya dihitung setelah mount agar SSR dan client identik
+    // (menghindari hydration mismatch akibat locale/zona waktu server).
+    const [today, setToday] = useState('');
+    useEffect(() => {
+        setToday(formatToday());
+    }, []);
     const { auth } = usePage().props;
     const canUseAi = auth.permissions.includes('ai.use');
 

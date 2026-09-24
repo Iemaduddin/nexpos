@@ -12,7 +12,7 @@ class UnitPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->can('products.view');
+        return $user->can('products.manage');
     }
 
     /**
@@ -20,7 +20,7 @@ class UnitPolicy
      */
     public function view(User $user, Unit $unit): bool
     {
-        return $user->can('products.view');
+        return $user->can('products.manage');
     }
 
     /**

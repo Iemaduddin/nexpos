@@ -73,8 +73,14 @@ test('users without permission cannot view adjustments', function () {
     $this->get(route('adjustments.index'))->assertForbidden();
 });
 
-test('users with view permission can visit the index', function () {
+test('users with view permission cannot visit the index', function () {
     $this->actingAs(adjustmentUser(['inventory.view']));
+
+    $this->get(route('adjustments.index'))->assertForbidden();
+});
+
+test('users with adjust permission can visit the index', function () {
+    $this->actingAs(adjustmentUser(['inventory.adjust']));
 
     $this->get(route('adjustments.index'))
         ->assertOk()
