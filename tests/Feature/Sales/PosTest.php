@@ -318,6 +318,44 @@ test('only users with discount permission can discount', function () {
     expect(Sale::latest('id')->firstOrFail()->grand_total)->toBe(54000);
 });
 
+test('checkout accepts JSON and returns the sale summary for the pos modal', function () {
+    $user = posUser(['sales.create', 'sales.discount']);
+    $this->actingAs($user);
+    $master = posMasterData();
+    $user->update(['store_id' => $master['store']->id]);
+    openPosSession($master['store'], $user);
+
+    $response = $this->postJson(route('pos.checkout'), checkoutPayload($master));
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath('sale.grand_total', 54000)
+        ->assertJsonPath('sale.paid_total', 100000)
+        ->assertJsonPath('sale.change_amount', 46000)
+        ->assertJsonPath('sale.items.0.qty', 2)
+        ->assertJsonPath('sale.payments.0.method', 'cash');
+
+    expect($response->json('sale.number'))->toStartWith('TRX-');
+    expect($response->json('sale.url'))->toContain('/sales/');
+});
+
+test('display page needs authentication and sales view permission', function () {
+    $this->get(route('pos.display'))->assertRedirect(route('login'));
+
+    $this->actingAs(posUser([]));
+    $this->get(route('pos.display'))->assertForbidden();
+
+    $this->actingAs(posUser(['sales.view']));
+    Store::create(['code' => 'T-UTAMA', 'name' => 'Toko Utama', 'is_main' => true]);
+
+    $this->get(route('pos.display'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('pos/display')
+            ->where('store.name', 'Toko Utama')
+        );
+});
+
 test('pos payload includes product category for filtering', function () {
     $this->actingAs(posUser(['sales.create']));
     $master = posMasterData();

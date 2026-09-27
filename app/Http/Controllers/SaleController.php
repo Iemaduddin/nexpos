@@ -12,6 +12,7 @@ use App\Models\SaleItem;
 use App\Models\StockLevel;
 use App\Models\StockMovement;
 use App\Models\Store;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +44,22 @@ class SaleController extends Controller
         return Inertia::render('sales/index', [
             'sales' => $sales,
             'filters' => ['search' => $search, 'status' => $status ?: null],
+        ]);
+    }
+
+    /**
+     * Show the customer-facing display (second monitor, same device).
+     * Live cart state is mirrored from the cashier page via localStorage.
+     */
+    public function display(Request $request): Response
+    {
+        Gate::authorize('viewAny', Sale::class);
+
+        $store = $request->user()->store ?? Store::query()->where('is_main', true)->first()
+            ?? Store::query()->orderBy('id')->firstOrFail();
+
+        return Inertia::render('pos/display', [
+            'store' => $store->only(['id', 'name']),
         ]);
     }
 
@@ -115,7 +132,7 @@ class SaleController extends Controller
     /**
      * Checkout the cart into a completed sale.
      */
-    public function checkout(StoreSaleRequest $request): RedirectResponse
+    public function checkout(StoreSaleRequest $request): RedirectResponse|JsonResponse
     {
         $validated = $request->validated();
         $user = $request->user();
@@ -327,6 +344,48 @@ class SaleController extends Controller
 
             return $sale;
         });
+
+        if ($request->wantsJson()) {
+            $sale->loadMissing([
+                'items.product:id,name',
+                'items.variant:id,name',
+                'payments:id,sale_id,method,amount,reference_no',
+                'customer:id,name',
+                'cashier:id,name',
+                'store:id,name',
+            ]);
+
+            return response()->json([
+                'sale' => [
+                    'id' => $sale->id,
+                    'number' => $sale->number,
+                    'completed_at' => $sale->completed_at?->toISOString(),
+                    'store' => $sale->store?->name,
+                    'cashier' => $sale->cashier?->name,
+                    'customer' => $sale->customer?->name,
+                    'subtotal' => $sale->subtotal,
+                    'discount_total' => $sale->discount_total,
+                    'tax_total' => $sale->tax_total,
+                    'grand_total' => $sale->grand_total,
+                    'paid_total' => $sale->paid_total,
+                    'change_amount' => $sale->change_amount,
+                    'url' => route('sales.show', $sale),
+                    'items' => $sale->items->map(fn ($item) => [
+                        'name' => $item->product?->name ?? '-',
+                        'variant' => $item->variant?->name,
+                        'qty' => $item->qty,
+                        'unit_price' => $item->unit_price,
+                        'discount' => $item->discount,
+                        'subtotal' => $item->subtotal,
+                    ])->values(),
+                    'payments' => $sale->payments->map(fn ($payment) => [
+                        'method' => $payment->method,
+                        'amount' => $payment->amount,
+                        'reference_no' => $payment->reference_no,
+                    ])->values(),
+                ],
+            ], 201);
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "Transaksi {$sale->number} berhasil."]);
 

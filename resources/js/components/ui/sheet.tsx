@@ -136,7 +136,7 @@ function SheetOverlay({ className, ...props }: React.ComponentProps<'div'>) {
             data-state="open"
             onClick={() => setOpen(false)}
             className={cn(
-                'fixed inset-0 z-50 bg-black/80',
+                'fixed inset-0 z-50 bg-black/80 print:hidden',
                 'animate-in fade-in-0 duration-200',
                 className,
             )}

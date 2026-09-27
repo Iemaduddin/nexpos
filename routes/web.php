@@ -276,6 +276,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('pos', [SaleController::class, 'pos'])
         ->middleware('permission:sales.create')
         ->name('pos.index');
+    Route::get('pos/display', [SaleController::class, 'display'])
+        ->middleware('permission:sales.view')
+        ->name('pos.display');
     Route::post('pos/checkout', [SaleController::class, 'checkout'])
         ->middleware('permission:sales.create')
         ->name('pos.checkout');

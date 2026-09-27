@@ -2,19 +2,25 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Banknote,
+    CheckCircle2,
     Minus,
     Package,
     Pause,
     Play,
     Plus,
+    Printer,
     ScanBarcode,
     ShoppingCart,
     Trash2,
+    Tv,
     UserPlus,
     Wallet,
 } from 'lucide-react';
 import { quickStore as quickCustomerStore } from '@/actions/App/Http/Controllers/CustomerController';
-import { checkout } from '@/actions/App/Http/Controllers/SaleController';
+import {
+    checkout,
+    display as displayPos,
+} from '@/actions/App/Http/Controllers/SaleController';
 import { index as sessionsIndex } from '@/actions/App/Http/Controllers/CashSessionController';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +35,10 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    POS_LIVE_KEY,
+    type BuyerLine,
+} from '@/components/pos/buyer-display';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -108,11 +118,77 @@ function xsrfToken(): string | null {
     return found ? decodeURIComponent(found.split('=')[1]) : null;
 }
 
+function useCountUp(target: number, active: boolean, duration = 900): number {
+    const [value, setValue] = useState(0);
+
+    useEffect(() => {
+        if (!active) {
+            setValue(0);
+            return;
+        }
+        if (
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+            target <= 0
+        ) {
+            setValue(target);
+            return;
+        }
+        let raf = 0;
+        const startedAt = performance.now();
+        const tick = (now: number) => {
+            const progress = Math.min(1, (now - startedAt) / duration);
+            setValue(
+                Math.round(target * (1 - Math.pow(1 - progress, 3))),
+            );
+            if (progress < 1) {
+                raf = requestAnimationFrame(tick);
+            }
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+    }, [target, active, duration]);
+
+    return value;
+}
+
 type PayRow = {
     key: number;
     method: string;
     amount: string;
     reference_no: string;
+};
+
+type CompletedSaleItem = {
+    name: string;
+    variant: string | null;
+    qty: number;
+    unit_price: number;
+    discount: number;
+    subtotal: number;
+};
+
+type CompletedSalePayment = {
+    method: string;
+    amount: number;
+    reference_no: string | null;
+};
+
+type CompletedSale = {
+    id: number;
+    number: string;
+    completed_at: string | null;
+    store: string | null;
+    cashier: string | null;
+    customer: string | null;
+    subtotal: number;
+    discount_total: number;
+    tax_total: number;
+    grand_total: number;
+    paid_total: number;
+    change_amount: number;
+    url: string;
+    items: CompletedSaleItem[];
+    payments: CompletedSalePayment[];
 };
 
 let rowKey = 0;
@@ -153,6 +229,65 @@ export default function PosIndex({
         },
     ]);
     const [processing, setProcessing] = useState(false);
+    const [receipt, setReceipt] = useState<CompletedSale | null>(null);
+    const [receiptOpen, setReceiptOpen] = useState(false);
+    const [submitErrors, setSubmitErrors] = useState<string[]>([]);
+    const changeCountUp = useCountUp(
+        receipt?.change_amount ?? 0,
+        receipt !== null,
+    );
+    const buyerLines: BuyerLine[] = useMemo(
+        () =>
+            cart.map((line) => ({
+                key: line.key,
+                name: line.name,
+                sub: line.variant_id ? line.sub : '',
+                qty: line.qty,
+                subtotal: Math.round(line.qty * line.price) - line.discount,
+            })),
+        [cart],
+    );
+
+    const liveCustomerName =
+        customers.find((customer) => String(customer.id) === customerId)
+            ?.name ?? null;
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            try {
+                localStorage.setItem(
+                    POS_LIVE_KEY,
+                    JSON.stringify({
+                        v: 1,
+                        savedAt: Date.now(),
+                        storeName: store.name,
+                        customerName: liveCustomerName,
+                        lines: buyerLines,
+                        grand,
+                        paid,
+                        payments: payments
+                            .filter((row) => Number(row.amount) > 0)
+                            .map((row) => ({
+                                method: row.method,
+                                amount: Number(row.amount) || 0,
+                            })),
+                        receipt: receipt
+                            ? {
+                                  number: receipt.number,
+                                  change_amount: receipt.change_amount,
+                                  customer: receipt.customer,
+                                  paid_total: receipt.paid_total,
+                              }
+                            : null,
+                    }),
+                );
+            } catch {
+                // abaikan keterbatasan penyimpanan lokal
+            }
+        }, 150);
+        return () => clearTimeout(timer);
+    });
+
     const [held, setHeld] = useState<HeldSale[]>(() => readHeldSales());
     const [holdOpen, setHoldOpen] = useState(false);
     const [quickOpen, setQuickOpen] = useState(false);
@@ -460,31 +595,68 @@ export default function PosIndex({
         });
     }
 
-    function submit() {
+    async function submit() {
+        if (!canPay || processing) {
+            return;
+        }
         setProcessing(true);
-
-        router.post(
-            checkout.url(),
-            {
-                customer_id: customerId || null,
-                discount_total: canDiscount ? discountTotal : 0,
-                items: cart.map((line) => ({
-                    product_id: line.product_id,
-                    variant_id: line.variant_id,
-                    qty: line.qty,
-                    discount: canDiscount ? line.discount : 0,
-                })),
-                payments: payments.map((row) => ({
-                    method: row.method,
-                    amount: Number(row.amount) || 0,
-                    reference_no: row.reference_no || null,
-                })),
-            },
-            {
-                preserveScroll: true,
-                onFinish: () => setProcessing(false),
-            },
-        );
+        setSubmitErrors([]);
+        try {
+            const token = xsrfToken();
+            const response = await fetch(checkout.url(), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    ...(token ? { 'X-XSRF-TOKEN': token } : {}),
+                },
+                body: JSON.stringify({
+                    customer_id: customerId || null,
+                    discount_total: canDiscount ? discountTotal : 0,
+                    items: cart.map((line) => ({
+                        product_id: line.product_id,
+                        variant_id: line.variant_id,
+                        qty: line.qty,
+                        discount: canDiscount ? line.discount : 0,
+                    })),
+                    payments: payments.map((row) => ({
+                        method: row.method,
+                        amount: Number(row.amount) || 0,
+                        reference_no: row.reference_no || null,
+                    })),
+                }),
+            });
+            if (response.status === 422) {
+                const data = (await response.json()) as {
+                    errors?: Record<string, string[]>;
+                    message?: string;
+                };
+                const messages = Object.values(data.errors ?? {}).flat();
+                setSubmitErrors(
+                    messages.length > 0
+                        ? messages.map(String)
+                        : [
+                              data.message ??
+                                  'Transaksi gagal. Periksa kembali.',
+                          ],
+                );
+                return;
+            }
+            if (!response.ok) {
+                throw new Error('failed');
+            }
+            const data = (await response.json()) as { sale: CompletedSale };
+            resetTransaction();
+            setReceipt(data.sale);
+            setReceiptOpen(true);
+            toast.success(`Transaksi ${data.sale.number} berhasil.`);
+        } catch {
+            setSubmitErrors(['Transaksi gagal diproses. Coba lagi.']);
+        } finally {
+            setProcessing(false);
+        }
     }
 
     function resetTransaction() {
@@ -645,18 +817,21 @@ export default function PosIndex({
         return () => window.removeEventListener('keydown', onKeyDown);
     });
 
-    const errorMessages = Object.values(errors ?? {});
+    const errorMessages = [
+        ...Object.values(errors ?? {}).map(String),
+        ...submitErrors,
+    ];
 
     return (
         <>
             <Head title="Kasir" />
 
             {errorMessages.length > 0 && (
-                <Alert variant="destructive">
+                <Alert variant="destructive" className="print:hidden">
                     <AlertDescription>
                         <ul className="list-disc space-y-0.5 pl-4">
                             {errorMessages.map((message, i) => (
-                                <li key={i}>{String(message)}</li>
+                                <li key={i}>{message}</li>
                             ))}
                         </ul>
                     </AlertDescription>
@@ -664,7 +839,7 @@ export default function PosIndex({
             )}
 
             {openSession === null && (
-                <Alert>
+                <Alert className="print:hidden">
                     <Wallet className="size-4" />
                     <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
                         <span>
@@ -678,7 +853,7 @@ export default function PosIndex({
                 </Alert>
             )}
 
-            <div className="grid items-start gap-4 xl:grid-cols-[1fr_380px]">
+            <div className="grid items-start gap-4 print:hidden xl:grid-cols-[1fr_380px]">
                 <Card>
                     <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-3">
                         <div className="relative flex-1">
@@ -698,6 +873,22 @@ export default function PosIndex({
                                 aria-label="Cari produk"
                             />
                         </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            title="Buka layar pembeli di window baru (monitor kedua)"
+                            aria-label="Buka layar pembeli"
+                            onClick={() =>
+                                window.open(
+                                    displayPos.url(),
+                                    '_blank',
+                                    'noopener',
+                                )
+                            }
+                        >
+                            <Tv className="size-4" />
+                        </Button>
                     </CardHeader>
                     <CardContent>
                         <div className="mb-3 flex flex-wrap items-center gap-1.5">
@@ -1381,6 +1572,171 @@ export default function PosIndex({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <Dialog
+                open={receiptOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setReceiptOpen(false);
+                        searchRef.current?.focus();
+                    }
+                }}
+            >
+                <DialogContent className="print:hidden sm:max-w-md">
+                    {receipt && (
+                        <>
+                            <div className="flex flex-col items-center gap-1 py-2 text-center">
+                                <span className="flex size-12 items-center justify-center rounded-full bg-green-500/15 animate-in zoom-in-50 duration-200">
+                                    <CheckCircle2 className="size-6 text-green-600" />
+                                </span>
+                                <DialogTitle>Pembayaran berhasil</DialogTitle>
+                                <p className="text-xs text-muted-foreground tabular-nums">
+                                    {receipt.number}
+                                </p>
+                            </div>
+                            <div className="rounded-lg bg-muted/60 p-4 text-center">
+                                <p className="text-xs text-muted-foreground">
+                                    Kembalian
+                                </p>
+                                <p className="text-4xl font-bold tabular-nums">
+                                    {formatIDR(changeCountUp)}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                                    Total {formatIDR(receipt.grand_total)} ·
+                                    Bayar {formatIDR(receipt.paid_total)}
+                                </p>
+                            </div>
+                            <ul className="grid max-h-40 gap-1 overflow-y-auto text-sm">
+                                {receipt.items.map((item, i) => (
+                                    <li
+                                        key={`${item.name}-${i}`}
+                                        className="flex items-baseline justify-between gap-2"
+                                    >
+                                        <span className="min-w-0 truncate">
+                                            {item.name}
+                                            {item.variant
+                                                ? ` · ${item.variant}`
+                                                : ''}{' '}
+                                            <span className="text-muted-foreground tabular-nums">
+                                                ×{formatQty(item.qty)}
+                                            </span>
+                                        </span>
+                                        <span className="shrink-0 tabular-nums">
+                                            {formatIDR(item.subtotal)}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                            <DialogFooter className="flex-col gap-2 sm:flex-row">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                        // Lepas kunci scroll modal agar browser
+                                        // mencetak seluruh struk, bukan viewport kosong.
+                                        const prevOverflow =
+                                            document.body.style.overflow;
+                                        document.body.style.overflow = '';
+                                        try {
+                                            window.print();
+                                        } finally {
+                                            document.body.style.overflow =
+                                                prevOverflow;
+                                        }
+                                    }}
+                                    className="flex-1"
+                                >
+                                    <Printer className="size-4" />
+                                    Cetak
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    asChild
+                                    className="flex-1"
+                                >
+                                    <Link href={receipt.url}>
+                                        Lihat detail
+                                    </Link>
+                                </Button>
+                                <Button
+                                    type="button"
+                                    autoFocus
+                                    className="flex-1"
+                                    onClick={() => {
+                                        setReceiptOpen(false);
+                                        searchRef.current?.focus();
+                                    }}
+                                >
+                                    Transaksi baru
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {receipt && (
+                <div className="hidden print:block" aria-hidden="true">
+                    <div className="mx-auto w-full max-w-xs text-sm">
+                        <p className="text-center font-bold">
+                            {receipt.store ?? 'NEXPOS'}
+                        </p>
+                        <p className="text-center tabular-nums">
+                            {receipt.number}
+                        </p>
+                        <p className="text-center text-xs">
+                            {receipt.completed_at
+                                ? new Date(
+                                      receipt.completed_at,
+                                  ).toLocaleString('id-ID')
+                                : ''}
+                            {receipt.cashier ? ` · ${receipt.cashier}` : ''}
+                        </p>
+                        <hr className="my-2 border-dashed" />
+                        {receipt.items.map((item, i) => (
+                            <div key={`${item.name}-${i}`} className="mb-1">
+                                <p>
+                                    {item.name}
+                                    {item.variant ? ` · ${item.variant}` : ''}
+                                </p>
+                                <p className="flex justify-between tabular-nums">
+                                    <span>
+                                        {formatQty(item.qty)} ×{' '}
+                                        {formatIDR(item.unit_price)}
+                                    </span>
+                                    <span>{formatIDR(item.subtotal)}</span>
+                                </p>
+                            </div>
+                        ))}
+                        <hr className="my-2 border-dashed" />
+                        <p className="flex justify-between tabular-nums">
+                            <span>Total</span>
+                            <span>{formatIDR(receipt.grand_total)}</span>
+                        </p>
+                        {receipt.payments.map((payment, i) => (
+                            <p
+                                key={`${payment.method}-${i}`}
+                                className="flex justify-between tabular-nums"
+                            >
+                                <span>
+                                    {paymentMethodLabel[payment.method] ??
+                                        payment.method}
+                                </span>
+                                <span>{formatIDR(payment.amount)}</span>
+                            </p>
+                        ))}
+                        <p className="flex justify-between font-bold tabular-nums">
+                            <span>Kembali</span>
+                            <span>{formatIDR(receipt.change_amount)}</span>
+                        </p>
+                        <p className="mt-2 text-center text-xs">
+                            Terima kasih atas kunjungan Anda
+                        </p>
+                    </div>
+                </div>
+            )}
+
         </>
     );
 }
