@@ -227,8 +227,6 @@ test('a return restores stock and updates sale status', function () {
     $sale = Sale::latest('id')->firstOrFail();
     $item = $sale->items()->firstOrFail();
 
-    $this->get(route('returns.create', $sale))->assertOk();
-
     $this->post(route('returns.store', $sale), [
         'reason' => 'Cacat',
         'items' => [['sale_item_id' => $item->id, 'qty' => 1]],

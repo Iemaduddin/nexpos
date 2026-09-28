@@ -41,17 +41,8 @@ class StockAdjustmentController extends Controller
         return Inertia::render('adjustments/index', [
             'adjustments' => $adjustments,
             'filters' => ['search' => $search, 'status' => $status ?: null],
+            ...$this->formOptions(),
         ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        Gate::authorize('create', StockAdjustment::class);
-
-        return Inertia::render('adjustments/create', $this->formOptions());
     }
 
     /**
@@ -119,28 +110,8 @@ class StockAdjustmentController extends Controller
         }
 
         return Inertia::render('adjustments/show', [
-            'adjustment' => array_merge($adjustment->toArray(), ['items' => $items]),
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(StockAdjustment $adjustment): Response|RedirectResponse
-    {
-        Gate::authorize('update', $adjustment);
-
-        if ($adjustment->status !== 'draft') {
-            Inertia::flash('toast', ['type' => 'error', 'message' => 'Hanya draf yang dapat diubah.']);
-
-            return to_route('adjustments.show', $adjustment);
-        }
-
-        $adjustment->load('items');
-
-        return Inertia::render('adjustments/edit', [
-            'adjustment' => $adjustment,
             ...$this->formOptions(),
+            'adjustment' => array_merge($adjustment->toArray(), ['items' => $items]),
         ]);
     }
 

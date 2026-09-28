@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Role\StoreRoleRequest;
 use App\Http\Requests\Role\UpdateRoleRequest;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -21,21 +22,28 @@ class RoleController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return Inertia::render('roles/index', ['roles' => $roles]);
-    }
-
-    /**
-     * Show the permission editor for a role.
-     */
-    public function edit(Role $role): Response
-    {
-        return Inertia::render('roles/edit', [
-            'role' => $role->load('permissions:id,name'),
+        return Inertia::render('roles/index', [
+            'roles' => $roles,
             'permissions' => Permission::query()
                 ->where('guard_name', 'web')
                 ->orderBy('name')
                 ->get(['id', 'name']),
         ]);
+    }
+
+    /**
+     * Store a newly created role.
+     */
+    public function store(StoreRoleRequest $request): RedirectResponse
+    {
+        Role::create([
+            'name' => $request->validated('name'),
+            'guard_name' => 'web',
+        ]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Peran berhasil ditambahkan.']);
+
+        return to_route('roles.index');
     }
 
     /**
@@ -51,6 +59,26 @@ class RoleController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Izin peran berhasil diperbarui.']);
 
-        return to_route('roles.edit', $role);
+        return to_route('roles.index');
+    }
+
+    /**
+     * Remove a role that has no users attached.
+     */
+    public function destroy(Role $role): RedirectResponse
+    {
+        if ($role->users()->exists()) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => 'Peran tidak dapat dihapus karena masih dipakai pengguna.']);
+
+            return to_route('roles.index');
+        }
+
+        $role->users()->detach();
+        $role->permissions()->detach();
+        $role->delete();
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Peran berhasil dihapus.']);
+
+        return to_route('roles.index');
     }
 }

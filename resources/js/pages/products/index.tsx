@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import {
     Package,
@@ -9,9 +9,7 @@ import {
     TriangleAlert,
 } from 'lucide-react';
 import {
-    create,
     destroy,
-    edit,
     index,
 } from '@/actions/App/Http/Controllers/ProductController';
 import EmptyState from '@/components/empty-state';
@@ -31,37 +29,73 @@ import {
 import { Input } from '@/components/ui/input';
 import { formatIDR, formatQty } from '@/lib/format';
 import { dashboard } from '@/routes';
-import type { OptionItem, Paginated, Product } from '@/types';
+import type { OptionItem, Paginated, Product, UnitOption } from '@/types';
+import { ProductCreateDialog, ProductEditDialog } from './product-form';
 
 type Props = {
     products: Paginated<Product>;
     filters: { search: string; category_id: number | null };
     categories: OptionItem[];
+    brands: OptionItem[];
+    units: UnitOption[];
 };
+
+function useFormOptions(): {
+    categories: OptionItem[];
+    brands: OptionItem[];
+    units: UnitOption[];
+} {
+    const { categories, brands, units } = usePage().props as unknown as {
+        categories: OptionItem[];
+        brands: OptionItem[];
+        units: UnitOption[];
+    };
+    return {
+        categories: categories ?? [],
+        brands: brands ?? [],
+        units: units ?? [],
+    };
+}
 
 function IndexActions() {
     const { auth } = usePage().props;
+    const [creating, setCreating] = useState(false);
+    const { categories, brands, units } = useFormOptions();
 
     if (!auth.permissions.includes('products.manage')) {
         return null;
     }
 
     return (
-        <Button asChild>
-            <Link href={create()}>
+        <>
+            <Button onClick={() => setCreating(true)}>
                 <Plus className="size-4" />
                 Tambah Produk
-            </Link>
-        </Button>
+            </Button>
+            <ProductCreateDialog
+                open={creating}
+                onOpenChange={setCreating}
+                categories={categories}
+                brands={brands}
+                units={units}
+            />
+        </>
     );
 }
 
-export default function ProductIndex({ products, filters, categories }: Props) {
+export default function ProductIndex({
+    products,
+    filters,
+    categories,
+}: Props) {
     const { auth } = usePage().props;
     const canManage = auth.permissions.includes('products.manage');
 
     const [query, setQuery] = useState(filters.search ?? '');
+    const [creating, setCreating] = useState(false);
+    const [editing, setEditing] = useState<Product | null>(null);
     const [deleting, setDeleting] = useState<Product | null>(null);
+    const { brands, units } = useFormOptions();
 
     useEffect(() => {
         if (query === (filters.search ?? '')) {
@@ -263,17 +297,15 @@ export default function ProductIndex({ products, filters, categories }: Props) {
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
-                                                            asChild
                                                             title="Ubah"
                                                             aria-label={`Ubah ${product.name}`}
+                                                            onClick={() =>
+                                                                setEditing(
+                                                                    product,
+                                                                )
+                                                            }
                                                         >
-                                                            <Link
-                                                                href={edit(
-                                                                    product.id,
-                                                                )}
-                                                            >
-                                                                <Pencil className="size-4" />
-                                                            </Link>
+                                                            <Pencil className="size-4" />
                                                         </Button>
                                                         <Button
                                                             variant="ghost"
@@ -315,11 +347,11 @@ export default function ProductIndex({ products, filters, categories }: Props) {
                                 !filters.search &&
                                 !filters.category_id &&
                                 canManage ? (
-                                    <Button asChild>
-                                        <Link href={create()}>
-                                            <Plus className="size-4" />
-                                            Tambah Produk
-                                        </Link>
+                                    <Button
+                                        onClick={() => setCreating(true)}
+                                    >
+                                        <Plus className="size-4" />
+                                        Tambah Produk
                                     </Button>
                                 ) : undefined
                             }
@@ -338,6 +370,29 @@ export default function ProductIndex({ products, filters, categories }: Props) {
                     />
                 </div>
             </Card>
+
+            <ProductCreateDialog
+                open={creating}
+                onOpenChange={setCreating}
+                categories={categories}
+                brands={brands}
+                units={units}
+            />
+
+            {editing && (
+                <ProductEditDialog
+                    product={editing}
+                    open={editing !== null}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setEditing(null);
+                        }
+                    }}
+                    categories={categories}
+                    brands={brands}
+                    units={units}
+                />
+            )}
 
             <Dialog
                 open={deleting !== null}

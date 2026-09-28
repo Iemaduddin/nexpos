@@ -36,16 +36,6 @@ class DocumentController extends Controller
     }
 
     /**
-     * Show the upload form.
-     */
-    public function create(): Response
-    {
-        Gate::authorize('create', Document::class);
-
-        return Inertia::render('documents/create');
-    }
-
-    /**
      * Store the upload and run OCR synchronously.
      */
     public function store(Request $request, DocumentOcr $ocr): RedirectResponse

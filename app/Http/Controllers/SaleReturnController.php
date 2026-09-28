@@ -34,57 +34,6 @@ class SaleReturnController extends Controller
     }
 
     /**
-     * Show the form for creating a return for the given sale.
-     */
-    public function create(Sale $sale): Response|RedirectResponse
-    {
-        Gate::authorize('create', [SaleReturn::class, $sale]);
-
-        if (! in_array($sale->status, ['completed', 'partial_refund'], true)) {
-            Inertia::flash('toast', ['type' => 'error', 'message' => 'Hanya transaksi selesai yang dapat diretur.']);
-
-            return to_route('sales.show', $sale);
-        }
-
-        $sale->load(['items.product:id,name,sku', 'items.variant:id,name,sku', 'returns.items']);
-
-        $returnedQty = [];
-
-        foreach ($sale->returns as $saleReturn) {
-            foreach ($saleReturn->items as $returnItem) {
-                $returnedQty[$returnItem->sale_item_id] = ($returnedQty[$returnItem->sale_item_id] ?? 0) + $returnItem->qty;
-            }
-        }
-
-        $items = [];
-
-        foreach ($sale->items as $item) {
-            $variantName = $item->variant_id !== null
-                ? $item->variant->name
-                : null;
-            $sku = $item->variant_id !== null
-                ? $item->variant->sku
-                : $item->product->sku;
-
-            $items[] = [
-                'id' => $item->id,
-                'name' => $item->product->name,
-                'variant' => $variantName,
-                'sku' => $sku,
-                'qty' => $item->qty,
-                'qty_returned' => $returnedQty[$item->id] ?? 0,
-                'unit_price' => $item->unit_price,
-                'discount' => $item->discount,
-            ];
-        }
-
-        return Inertia::render('returns/create', [
-            'sale' => $sale->only(['id', 'number', 'status']),
-            'items' => $items,
-        ]);
-    }
-
-    /**
      * Store a newly created return and restore stock.
      */
     public function store(StoreSaleReturnRequest $request, Sale $sale): RedirectResponse

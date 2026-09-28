@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { ResponsiveBar } from '@nivo/bar';
 import { ResponsivePie } from '@nivo/pie';
 import {
@@ -9,11 +9,14 @@ import {
     TriangleAlert,
     Trophy,
 } from 'lucide-react';
+import { index as purchasesIndex } from '@/actions/App/Http/Controllers/PurchaseController';
 import { show as showSale } from '@/actions/App/Http/Controllers/SaleController';
 import AnomalyCard from '@/components/anomaly-card';
 import BriefingCard from '@/components/briefing-card';
 import EmptyState from '@/components/empty-state';
 import StatCard from '@/components/stat-card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatIDR } from '@/lib/format';
 import { paymentMethodLabel } from '@/lib/sale';
@@ -33,6 +36,40 @@ function formatTime(value: string): string {
         hour: '2-digit',
         minute: '2-digit',
     }).format(new Date(value));
+}
+
+function LowStockList({ items }: { items: LowStockItem[] }) {
+    const { auth } = usePage().props;
+    const canPurchase = auth.permissions.includes('inventory.purchase');
+
+    return (
+        <ul className="divide-y">
+            {items.map((item) => (
+                <li
+                    key={item.id}
+                    className="flex items-center gap-3 px-4 py-2.5"
+                >
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                            {item.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground tabular-nums">
+                            {item.sku} · sisa {item.stock}, batas{' '}
+                            {item.threshold}
+                        </p>
+                    </div>
+                    <Badge variant="destructive" className="tabular-nums">
+                        {item.stock}
+                    </Badge>
+                    {canPurchase && (
+                        <Button size="sm" variant="outline" asChild>
+                            <Link href={purchasesIndex()}>Buat PO</Link>
+                        </Button>
+                    )}
+                </li>
+            ))}
+        </ul>
+    );
 }
 
 export default function Dashboard({
@@ -171,75 +208,17 @@ export default function Dashboard({
                             Stok Menipis
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="p-0">
                         {lowStock.length > 0 ? (
-                            <div className="h-64 w-full">
-                                <ResponsiveBar
-                                    data={lowStock.map((item) => ({
-                                        product: item.name,
-                                        stok: item.stock,
-                                        batas: item.threshold,
-                                    }))}
-                                    keys={['stok', 'batas']}
-                                    indexBy="product"
-                                    layout="horizontal"
-                                    groupMode="grouped"
-                                    margin={{ top: 8, right: 16, bottom: 28, left: 112 }}
-                                    padding={0.3}
-                                    valueScale={{ type: 'linear' }}
-                                    indexScale={{ type: 'band', round: true }}
-                                    colors={['var(--destructive)', 'var(--chart-4)']}
-                                    borderRadius={4}
-                                    enableLabel={false}
-                                    enableGridX
-                                    enableGridY={false}
-                                    axisTop={null}
-                                    axisRight={null}
-                                    axisBottom={{ tickSize: 0, tickPadding: 8 }}
-                                    axisLeft={{ tickSize: 0, tickPadding: 8 }}
-                                    legends={[
-                                        {
-                                            dataFrom: 'keys',
-                                            anchor: 'bottom-right',
-                                            direction: 'row',
-                                            justify: false,
-                                            translateY: 48,
-                                            itemsSpacing: 12,
-                                            itemWidth: 70,
-                                            itemHeight: 18,
-                                            symbolSize: 10,
-                                        },
-                                    ]}
-                                    theme={{
-                                        axis: {
-                                            ticks: {
-                                                text: {
-                                                    fill: 'var(--muted-foreground)',
-                                                    fontSize: 11,
-                                                },
-                                            },
-                                        },
-                                        grid: {
-                                            line: {
-                                                stroke: 'var(--border)',
-                                                strokeDasharray: '3 3',
-                                            },
-                                        },
-                                        legends: {
-                                            text: {
-                                                fill: 'var(--muted-foreground)',
-                                                fontSize: 11,
-                                            },
-                                        },
-                                    }}
+                            <LowStockList items={lowStock} />
+                        ) : (
+                            <div className="p-6 pt-0">
+                                <EmptyState
+                                    icon={TriangleAlert}
+                                    title="Semua stok aman"
+                                    description="Produk yang stoknya di bawah batas minimum akan muncul di sini."
                                 />
                             </div>
-                        ) : (
-                            <EmptyState
-                                icon={TriangleAlert}
-                                title="Semua stok aman"
-                                description="Chart akan muncul saat ada stok di bawah batas minimum."
-                            />
                         )}
                     </CardContent>
                 </Card>

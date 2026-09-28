@@ -1,11 +1,10 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import { Building2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Building2, Eye, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import {
-    create,
     destroy,
-    edit,
     index,
+    show,
 } from '@/actions/App/Http/Controllers/SupplierController';
 import EmptyState from '@/components/empty-state';
 import Pagination from '@/components/pagination';
@@ -24,6 +23,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { dashboard } from '@/routes';
 import type { Paginated, Supplier } from '@/types';
+import { SupplierCreateDialog, SupplierEditDialog } from './supplier-form';
 
 type Props = {
     suppliers: Paginated<Supplier>;
@@ -32,18 +32,23 @@ type Props = {
 
 function IndexActions() {
     const { auth } = usePage().props;
+    const [creating, setCreating] = useState(false);
 
     if (!auth.permissions.includes('suppliers.manage')) {
         return null;
     }
 
     return (
-        <Button asChild>
-            <Link href={create()}>
+        <>
+            <Button onClick={() => setCreating(true)}>
                 <Plus className="size-4" />
                 Tambah Supplier
-            </Link>
-        </Button>
+            </Button>
+            <SupplierCreateDialog
+                open={creating}
+                onOpenChange={setCreating}
+            />
+        </>
     );
 }
 
@@ -52,6 +57,8 @@ export default function SupplierIndex({ suppliers, filters }: Props) {
     const canManage = auth.permissions.includes('suppliers.manage');
 
     const [query, setQuery] = useState(filters.search ?? '');
+    const [creating, setCreating] = useState(false);
+    const [editing, setEditing] = useState<Supplier | null>(null);
     const [deleting, setDeleting] = useState<Supplier | null>(null);
 
     useEffect(() => {
@@ -132,11 +139,9 @@ export default function SupplierIndex({ suppliers, filters }: Props) {
                                     <th className="px-4 py-2.5 font-medium">
                                         Status
                                     </th>
-                                    {canManage && (
-                                        <th className="px-4 py-2.5 text-right font-medium">
-                                            Aksi
-                                        </th>
-                                    )}
+                                    <th className="px-4 py-2.5 text-right font-medium">
+                                        Aksi
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -171,24 +176,37 @@ export default function SupplierIndex({ suppliers, filters }: Props) {
                                                     : 'Nonaktif'}
                                             </Badge>
                                         </td>
-                                        {canManage && (
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center justify-end gap-1">
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    asChild
+                                                    title="Detail"
+                                                    aria-label={`Detail ${supplier.name}`}
+                                                >
+                                                    <Link
+                                                        href={show(
+                                                            supplier.id,
+                                                        )}
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </Link>
+                                                </Button>
+                                                {canManage && (
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        asChild
                                                         title="Ubah"
                                                         aria-label={`Ubah ${supplier.name}`}
+                                                        onClick={() =>
+                                                            setEditing(supplier)
+                                                        }
                                                     >
-                                                        <Link
-                                                            href={edit(
-                                                                supplier.id,
-                                                            )}
-                                                        >
-                                                            <Pencil className="size-4" />
-                                                        </Link>
+                                                        <Pencil className="size-4" />
                                                     </Button>
+                                                )}
+                                                {canManage && (
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
@@ -202,9 +220,9 @@ export default function SupplierIndex({ suppliers, filters }: Props) {
                                                     >
                                                         <Trash2 className="size-4 text-destructive" />
                                                     </Button>
-                                                </div>
-                                            </td>
-                                        )}
+                                                )}
+                                            </div>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -226,11 +244,11 @@ export default function SupplierIndex({ suppliers, filters }: Props) {
                             }
                             action={
                                 !filters.search && canManage ? (
-                                    <Button asChild>
-                                        <Link href={create()}>
-                                            <Plus className="size-4" />
-                                            Tambah Supplier
-                                        </Link>
+                                    <Button
+                                        onClick={() => setCreating(true)}
+                                    >
+                                        <Plus className="size-4" />
+                                        Tambah Supplier
                                     </Button>
                                 ) : undefined
                             }
@@ -249,6 +267,23 @@ export default function SupplierIndex({ suppliers, filters }: Props) {
                     />
                 </div>
             </Card>
+
+            <SupplierCreateDialog
+                open={creating}
+                onOpenChange={setCreating}
+            />
+
+            {editing && (
+                <SupplierEditDialog
+                    supplier={editing}
+                    open={editing !== null}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setEditing(null);
+                        }
+                    }}
+                />
+            )}
 
             <Dialog
                 open={deleting !== null}

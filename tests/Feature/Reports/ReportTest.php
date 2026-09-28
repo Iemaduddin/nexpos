@@ -182,3 +182,24 @@ test('reports page needs permission and honors period', function () {
     $this->get(route('reports.index', ['period' => 'ngawur']))
         ->assertSessionHasErrors('period');
 });
+
+test('csv export needs permission and returns daily rows', function () {
+    $this->get(route('reports.export'))->assertRedirect(route('login'));
+
+    $this->actingAs(reportUser());
+    $this->get(route('reports.export'))->assertForbidden();
+
+    $this->actingAs(reportUser(['reports.view']));
+    $master = reportMasterData();
+    reportSale($master);
+
+    $response = $this->get(route('reports.export', ['period' => 'today']));
+
+    $response->assertOk();
+    expect($response->headers->get('Content-Type'))->toContain('text/csv');
+
+    $lines = array_filter(explode("\n", trim($response->streamedContent() ?? $response->getContent())));
+    expect($lines[0])->toBe('Tanggal,Omzet,Refund,Transaksi,Profit');
+    expect(count($lines))->toBeGreaterThan(1);
+    expect(implode("\n", $lines))->toContain(',54000,');
+});

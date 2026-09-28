@@ -1,18 +1,30 @@
-import { Form, Link } from '@inertiajs/react';
+import { Form } from '@inertiajs/react';
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { index } from '@/actions/App/Http/Controllers/PurchaseController';
+import { store } from '@/actions/App/Http/Controllers/PurchaseController';
+import { update } from '@/actions/App/Http/Controllers/PurchaseController';
 import FormSelect from '@/components/form-select';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { formatIDR } from '@/lib/format';
 import type { RouteFormDefinition } from '@/wayfinder';
-import type { OptionItem, ProductOption, StoreOption } from '@/types';
+import type {
+    OptionItem,
+    ProductOption,
+    Purchase,
+    StoreOption,
+} from '@/types';
 
 export type PurchaseFormInitial = {
     supplier_id: string;
@@ -49,6 +61,7 @@ export default function PurchaseForm({
     products,
     submitLabel,
     documentId,
+    onCancel,
 }: {
     action: RouteFormDefinition<'post'>;
     initial: PurchaseFormInitial;
@@ -58,6 +71,7 @@ export default function PurchaseForm({
     products: ProductOption[];
     submitLabel: string;
     documentId?: number;
+    onCancel: () => void;
 }) {
     const [items, setItems] = useState<PurchaseItemRow[]>(initialItems);
     const [discount, setDiscount] = useState(initial.discount);
@@ -93,6 +107,7 @@ export default function PurchaseForm({
         <Form
             {...action}
             options={{ preserveScroll: true }}
+            onSuccess={() => onCancel()}
             className="grid max-w-3xl gap-4"
         >
             {({ processing, errors }) => (
@@ -104,13 +119,8 @@ export default function PurchaseForm({
                             value={documentId}
                         />
                     )}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base font-medium">
-                                Informasi Pembelian
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="grid gap-5">
+                    <div className="grid gap-5">
+                        <p className="text-sm font-medium">Informasi Pembelian</p>
                             <div className="grid gap-5 sm:grid-cols-2">
                                 <FormSelect
                                     id="supplier_id"
@@ -189,14 +199,11 @@ export default function PurchaseForm({
                                 />
                                 <InputError message={errors.notes} />
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle className="text-base font-medium">
-                                Item Barang
-                            </CardTitle>
+                    <div className="grid gap-4">
+                        <div className="flex flex-row items-center justify-between">
+                            <p className="text-sm font-medium">Item Barang</p>
                             <Button
                                 type="button"
                                 variant="outline"
@@ -208,8 +215,8 @@ export default function PurchaseForm({
                                 <Plus className="size-4" />
                                 Tambah Item
                             </Button>
-                        </CardHeader>
-                        <CardContent className="grid gap-4">
+                        </div>
+                        <div className="grid gap-4">
                             {items.length === 0 && (
                                 <p className="text-sm text-muted-foreground">
                                     Belum ada item. Tambahkan minimal satu
@@ -419,11 +426,11 @@ export default function PurchaseForm({
                                 );
                             })}
                             <InputError message={errors.items} />
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
 
-                    <Card>
-                        <CardContent className="grid gap-1 pt-6 text-sm tabular-nums">
+                    <div className="grid gap-4">
+                        <div className="grid gap-1 rounded-lg border bg-muted/50 p-4 text-sm tabular-nums">
                             <div className="flex justify-between text-muted-foreground">
                                 <span>Subtotal</span>
                                 <span>{formatIDR(subtotal)}</span>
@@ -443,20 +450,130 @@ export default function PurchaseForm({
                             <p className="text-xs text-muted-foreground">
                                 Total dihitung ulang oleh sistem saat disimpan.
                             </p>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={onCancel}
+                        >
+                            Batal
+                        </Button>
                         <Button type="submit" disabled={processing}>
                             {processing && <Spinner />}
                             {submitLabel}
-                        </Button>
-                        <Button variant="outline" asChild>
-                            <Link href={index()}>Batal</Link>
                         </Button>
                     </div>
                 </>
             )}
         </Form>
+    );
+}
+
+const emptyInitial: PurchaseFormInitial = {
+    supplier_id: '',
+    store_id: '',
+    expected_at: '',
+    discount: '',
+    tax: '',
+    notes: '',
+};
+
+export function PurchaseCreateDialog({
+    open,
+    onOpenChange,
+    suppliers,
+    stores,
+    products,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    suppliers: OptionItem[];
+    stores: StoreOption[];
+    products: ProductOption[];
+}) {
+    const mainStore = stores.find((store) => store.is_main);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Buat Pembelian</DialogTitle>
+                    <DialogDescription>
+                        Buat draf pembelian barang dari supplier.
+                    </DialogDescription>
+                </DialogHeader>
+                <PurchaseForm
+                    action={store.form()}
+                    initial={{
+                        ...emptyInitial,
+                        store_id: mainStore
+                            ? mainStore.id.toString()
+                            : '',
+                    }}
+                    initialItems={[newItemRow()]}
+                    suppliers={suppliers}
+                    stores={stores}
+                    products={products}
+                    submitLabel="Simpan Draf"
+                    onCancel={() => onOpenChange(false)}
+                />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+export function PurchaseEditDialog({
+    purchase,
+    open,
+    onOpenChange,
+    suppliers,
+    stores,
+    products,
+}: {
+    purchase: Purchase;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    suppliers: OptionItem[];
+    stores: StoreOption[];
+    products: ProductOption[];
+}) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Ubah Pembelian</DialogTitle>
+                    <DialogDescription>
+                        Perbarui draf pembelian {purchase.number}.
+                    </DialogDescription>
+                </DialogHeader>
+                <PurchaseForm
+                    key={purchase.id}
+                    action={update.form(purchase.id)}
+                    initial={{
+                        supplier_id: purchase.supplier_id.toString(),
+                        store_id: purchase.store_id.toString(),
+                        expected_at: purchase.expected_at?.slice(0, 10) ?? '',
+                        discount: purchase.discount?.toString() ?? '',
+                        tax: purchase.tax?.toString() ?? '',
+                        notes: purchase.notes ?? '',
+                    }}
+                    initialItems={(purchase.items ?? []).map((item) => ({
+                        ...newItemRow(),
+                        product_id: item.product_id.toString(),
+                        variant_id: item.variant_id?.toString() ?? '',
+                        qty: item.qty_ordered.toString(),
+                        cost: item.cost_price.toString(),
+                    }))}
+                    suppliers={suppliers}
+                    stores={stores}
+                    products={products}
+                    submitLabel="Simpan Perubahan"
+                    onCancel={() => onOpenChange(false)}
+                />
+            </DialogContent>
+        </Dialog>
     );
 }

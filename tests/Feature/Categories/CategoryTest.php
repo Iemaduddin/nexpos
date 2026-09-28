@@ -65,7 +65,6 @@ test('users with manage permission can visit the index', function () {
 test('users without manage permission cannot create categories', function () {
     $this->actingAs(categoryUser(['products.view']));
 
-    $this->get(route('categories.create'))->assertForbidden();
     $this->post(route('categories.store'), ['name' => 'Minuman'])->assertForbidden();
 });
 

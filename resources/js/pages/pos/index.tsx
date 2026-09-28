@@ -90,6 +90,8 @@ const HELD_KEY = 'nexpos:pos:held:v1';
 type HeldSale = {
     id: string;
     savedAt: number;
+    /** Opsional agar entri lama tetap terbaca. */
+    storeId?: number;
     customerId: string;
     cart: CartLine[];
     cartDiscount: string;
@@ -290,6 +292,27 @@ export default function PosIndex({
 
     const [held, setHeld] = useState<HeldSale[]>(() => readHeldSales());
     const [holdOpen, setHoldOpen] = useState(false);
+
+    // Transaksi tertahan hanya berlaku di gerai tempat menahannya.
+    // Entri lama tanpa storeId tetap ditampilkan agar tidak hilang.
+    const storeHeld = held.filter(
+        (entry) =>
+            entry.storeId === undefined || entry.storeId === store.id,
+    );
+
+    const cartEmpty = cart.length === 0;
+    useEffect(() => {
+        if (cartEmpty) {
+            setPayments([
+                {
+                    key: 0,
+                    method: defaultPaymentMethod,
+                    amount: '',
+                    reference_no: '',
+                },
+            ]);
+        }
+    }, [cartEmpty, defaultPaymentMethod]);
     const [quickOpen, setQuickOpen] = useState(false);
     const [quickName, setQuickName] = useState('');
     const [quickPhone, setQuickPhone] = useState('');
@@ -562,8 +585,12 @@ export default function PosIndex({
                 ];
             }
 
+            const target = Math.max(
+                0,
+                rows.findIndex((row) => row.method === 'cash'),
+            );
             return rows.map((row, i) =>
-                i === 0 ? { ...row, amount: amount.toString() } : row,
+                i === target ? { ...row, amount: amount.toString() } : row,
             );
         });
     }
@@ -683,6 +710,7 @@ export default function PosIndex({
         const entry: HeldSale = {
             id: `${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
             savedAt: Date.now(),
+            storeId: store.id,
             customerId,
             cart,
             cartDiscount,
@@ -1022,12 +1050,12 @@ export default function PosIndex({
                                 >
                                     <Play className="size-3" />
                                     Antrian
-                                    {held.length > 0 && (
+                                    {storeHeld.length > 0 && (
                                         <Badge
                                             variant="secondary"
                                             className="ml-1 px-1 tabular-nums"
                                         >
-                                            {held.length}
+                                            {storeHeld.length}
                                         </Badge>
                                     )}
                                 </Button>
@@ -1462,13 +1490,13 @@ export default function PosIndex({
                             sudah tidak diperlukan.
                         </DialogDescription>
                     </DialogHeader>
-                    {held.length === 0 ? (
+                    {storeHeld.length === 0 ? (
                         <p className="py-4 text-center text-sm text-muted-foreground">
                             Tidak ada transaksi yang ditahan.
                         </p>
                     ) : (
                         <ul className="grid max-h-80 gap-2 overflow-y-auto">
-                            {held.map((entry) => (
+                            {storeHeld.map((entry) => (
                                 <li
                                     key={entry.id}
                                     className="flex items-center gap-3 rounded-lg border p-3"

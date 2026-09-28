@@ -4,7 +4,6 @@ import { Pencil, Trash2 } from 'lucide-react';
 import {
     cancel,
     destroy,
-    edit,
     index,
     order,
     pay,
@@ -30,7 +29,13 @@ import { Spinner } from '@/components/ui/spinner';
 import { formatIDR, formatQty } from '@/lib/format';
 import { purchasePaymentLabel, purchaseStatusLabel } from '@/lib/purchase';
 import { dashboard } from '@/routes';
-import type { Purchase } from '@/types';
+import type {
+    OptionItem,
+    ProductOption,
+    Purchase,
+    StoreOption,
+} from '@/types';
+import { PurchaseEditDialog } from './purchase-form';
 
 function formatDate(value: string | null): string {
     if (!value) {
@@ -51,6 +56,12 @@ export default function PurchaseShow({ purchase }: { purchase: Purchase }) {
     const [receiving, setReceiving] = useState(false);
     const [paying, setPaying] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const { suppliers, stores, products } = usePage().props as unknown as {
+        suppliers: OptionItem[];
+        stores: StoreOption[];
+        products: ProductOption[];
+    };
 
     const items = purchase.items ?? [];
     const remaining = purchase.grand_total - purchase.paid_amount;
@@ -107,13 +118,19 @@ export default function PurchaseShow({ purchase }: { purchase: Purchase }) {
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            asChild
+                                            onClick={() => setEditing(true)}
                                         >
-                                            <Link href={edit(purchase.id)}>
-                                                <Pencil className="size-4" />
-                                                Ubah
-                                            </Link>
+                                            <Pencil className="size-4" />
+                                            Ubah
                                         </Button>
+                                        <PurchaseEditDialog
+                                            purchase={purchase}
+                                            open={editing}
+                                            onOpenChange={setEditing}
+                                            suppliers={suppliers ?? []}
+                                            stores={stores ?? []}
+                                            products={products ?? []}
+                                        />
                                         <Button
                                             size="sm"
                                             onClick={() =>

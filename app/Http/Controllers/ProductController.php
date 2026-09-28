@@ -31,7 +31,7 @@ class ProductController extends Controller
         $categoryId = $request->integer('category_id');
 
         $products = Product::query()
-            ->with(['category:id,name', 'unit:id,symbol'])
+            ->with(['category:id,name', 'unit:id,symbol', 'variants'])
             ->withSum('stockLevels as stock', 'qty_on_hand')
             ->when($search, fn ($query) => $query
                 ->where('name', 'like', "%{$search}%")
@@ -46,18 +46,6 @@ class ProductController extends Controller
         return Inertia::render('products/index', [
             'products' => $products,
             'filters' => ['search' => $search, 'category_id' => $categoryId ?: null],
-            'categories' => Category::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
-        ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        Gate::authorize('create', Product::class);
-
-        return Inertia::render('products/create', [
             'categories' => Category::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'brands' => Brand::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'units' => Unit::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'symbol']),
@@ -98,23 +86,6 @@ class ProductController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Produk berhasil ditambahkan.']);
 
         return to_route('products.index');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Product $product): Response
-    {
-        Gate::authorize('update', $product);
-
-        $product->load('variants');
-
-        return Inertia::render('products/edit', [
-            'product' => $product,
-            'categories' => Category::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
-            'brands' => Brand::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
-            'units' => Unit::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'symbol']),
-        ]);
     }
 
     /**

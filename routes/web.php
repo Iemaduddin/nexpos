@@ -15,13 +15,18 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleReturnController;
 use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+Route::get('/', function () {
+    return auth()->check()
+        ? to_route('dashboard')
+        : to_route('login');
+})->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -29,6 +34,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('reports', [ReportController::class, 'index'])
         ->middleware('permission:reports.view')
         ->name('reports.index');
+    Route::get('reports/export', [ReportController::class, 'exportCsv'])
+        ->middleware('permission:reports.view')
+        ->name('reports.export');
 
     Route::get('ai', [AiChatController::class, 'index'])
         ->middleware('permission:ai.use')
@@ -59,9 +67,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('documents', [DocumentController::class, 'index'])
         ->middleware('permission:inventory.purchase')
         ->name('documents.index');
-    Route::get('documents/create', [DocumentController::class, 'create'])
-        ->middleware('permission:inventory.purchase')
-        ->name('documents.create');
     Route::post('documents', [DocumentController::class, 'store'])
         ->middleware('permission:inventory.purchase')
         ->name('documents.store');
@@ -81,18 +86,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('customers', [CustomerController::class, 'index'])
         ->middleware('permission:customers.view')
         ->name('customers.index');
-    Route::get('customers/create', [CustomerController::class, 'create'])
-        ->middleware('permission:customers.manage')
-        ->name('customers.create');
     Route::post('customers', [CustomerController::class, 'store'])
         ->middleware('permission:customers.manage')
         ->name('customers.store');
+    Route::get('customers/{customer}', [CustomerController::class, 'show'])
+        ->middleware('permission:customers.view')
+        ->name('customers.show');
     Route::post('customers/quick', [CustomerController::class, 'quickStore'])
         ->middleware('permission:customers.manage')
         ->name('customers.quick');
-    Route::get('customers/{customer}/edit', [CustomerController::class, 'edit'])
-        ->middleware('permission:customers.manage')
-        ->name('customers.edit');
     Route::match(['put', 'patch'], 'customers/{customer}', [CustomerController::class, 'update'])
         ->middleware('permission:customers.manage')
         ->name('customers.update');
@@ -103,15 +105,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('suppliers', [SupplierController::class, 'index'])
         ->middleware('permission:suppliers.view')
         ->name('suppliers.index');
-    Route::get('suppliers/create', [SupplierController::class, 'create'])
-        ->middleware('permission:suppliers.manage')
-        ->name('suppliers.create');
     Route::post('suppliers', [SupplierController::class, 'store'])
         ->middleware('permission:suppliers.manage')
         ->name('suppliers.store');
-    Route::get('suppliers/{supplier}/edit', [SupplierController::class, 'edit'])
-        ->middleware('permission:suppliers.manage')
-        ->name('suppliers.edit');
+    Route::get('suppliers/{supplier}', [SupplierController::class, 'show'])
+        ->middleware('permission:suppliers.view')
+        ->name('suppliers.show');
     Route::match(['put', 'patch'], 'suppliers/{supplier}', [SupplierController::class, 'update'])
         ->middleware('permission:suppliers.manage')
         ->name('suppliers.update');
@@ -122,15 +121,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('stores', [StoreController::class, 'index'])
         ->middleware('permission:settings.manage')
         ->name('stores.index');
-    Route::get('stores/create', [StoreController::class, 'create'])
-        ->middleware('permission:settings.manage')
-        ->name('stores.create');
     Route::post('stores', [StoreController::class, 'store'])
         ->middleware('permission:settings.manage')
         ->name('stores.store');
-    Route::get('stores/{store}/edit', [StoreController::class, 'edit'])
-        ->middleware('permission:settings.manage')
-        ->name('stores.edit');
     Route::match(['put', 'patch'], 'stores/{store}', [StoreController::class, 'update'])
         ->middleware('permission:settings.manage')
         ->name('stores.update');
@@ -141,15 +134,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('categories', [CategoryController::class, 'index'])
         ->middleware('permission:products.manage')
         ->name('categories.index');
-    Route::get('categories/create', [CategoryController::class, 'create'])
-        ->middleware('permission:products.manage')
-        ->name('categories.create');
     Route::post('categories', [CategoryController::class, 'store'])
         ->middleware('permission:products.manage')
         ->name('categories.store');
-    Route::get('categories/{category}/edit', [CategoryController::class, 'edit'])
-        ->middleware('permission:products.manage')
-        ->name('categories.edit');
     Route::match(['put', 'patch'], 'categories/{category}', [CategoryController::class, 'update'])
         ->middleware('permission:products.manage')
         ->name('categories.update');
@@ -160,15 +147,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('brands', [BrandController::class, 'index'])
         ->middleware('permission:products.manage')
         ->name('brands.index');
-    Route::get('brands/create', [BrandController::class, 'create'])
-        ->middleware('permission:products.manage')
-        ->name('brands.create');
     Route::post('brands', [BrandController::class, 'store'])
         ->middleware('permission:products.manage')
         ->name('brands.store');
-    Route::get('brands/{brand}/edit', [BrandController::class, 'edit'])
-        ->middleware('permission:products.manage')
-        ->name('brands.edit');
     Route::match(['put', 'patch'], 'brands/{brand}', [BrandController::class, 'update'])
         ->middleware('permission:products.manage')
         ->name('brands.update');
@@ -179,15 +160,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('units', [UnitController::class, 'index'])
         ->middleware('permission:products.manage')
         ->name('units.index');
-    Route::get('units/create', [UnitController::class, 'create'])
-        ->middleware('permission:products.manage')
-        ->name('units.create');
     Route::post('units', [UnitController::class, 'store'])
         ->middleware('permission:products.manage')
         ->name('units.store');
-    Route::get('units/{unit}/edit', [UnitController::class, 'edit'])
-        ->middleware('permission:products.manage')
-        ->name('units.edit');
     Route::match(['put', 'patch'], 'units/{unit}', [UnitController::class, 'update'])
         ->middleware('permission:products.manage')
         ->name('units.update');
@@ -198,15 +173,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('products', [ProductController::class, 'index'])
         ->middleware('permission:products.view')
         ->name('products.index');
-    Route::get('products/create', [ProductController::class, 'create'])
-        ->middleware('permission:products.manage')
-        ->name('products.create');
     Route::post('products', [ProductController::class, 'store'])
         ->middleware('permission:products.manage')
         ->name('products.store');
-    Route::get('products/{product}/edit', [ProductController::class, 'edit'])
-        ->middleware('permission:products.manage')
-        ->name('products.edit');
     Route::match(['put', 'patch'], 'products/{product}', [ProductController::class, 'update'])
         ->middleware('permission:products.manage')
         ->name('products.update');
@@ -217,18 +186,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('purchases', [PurchaseController::class, 'index'])
         ->middleware('permission:inventory.purchase')
         ->name('purchases.index');
-    Route::get('purchases/create', [PurchaseController::class, 'create'])
-        ->middleware('permission:inventory.purchase')
-        ->name('purchases.create');
     Route::post('purchases', [PurchaseController::class, 'store'])
         ->middleware('permission:inventory.purchase')
         ->name('purchases.store');
     Route::get('purchases/{purchase}', [PurchaseController::class, 'show'])
         ->middleware('permission:inventory.purchase')
         ->name('purchases.show');
-    Route::get('purchases/{purchase}/edit', [PurchaseController::class, 'edit'])
-        ->middleware('permission:inventory.purchase')
-        ->name('purchases.edit');
     Route::match(['put', 'patch'], 'purchases/{purchase}', [PurchaseController::class, 'update'])
         ->middleware('permission:inventory.purchase')
         ->name('purchases.update');
@@ -251,24 +214,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('adjustments', [StockAdjustmentController::class, 'index'])
         ->middleware('permission:inventory.adjust')
         ->name('adjustments.index');
-    Route::get('adjustments/create', [StockAdjustmentController::class, 'create'])
-        ->middleware('permission:inventory.adjust')
-        ->name('adjustments.create');
     Route::post('adjustments', [StockAdjustmentController::class, 'store'])
         ->middleware('permission:inventory.adjust')
         ->name('adjustments.store');
     Route::get('adjustments/{adjustment}', [StockAdjustmentController::class, 'show'])
         ->middleware('permission:inventory.adjust')
         ->name('adjustments.show');
-    Route::get('adjustments/{adjustment}/edit', [StockAdjustmentController::class, 'edit'])
-        ->middleware('permission:inventory.adjust')
-        ->name('adjustments.edit');
     Route::match(['put', 'patch'], 'adjustments/{adjustment}', [StockAdjustmentController::class, 'update'])
         ->middleware('permission:inventory.adjust')
         ->name('adjustments.update');
     Route::delete('adjustments/{adjustment}', [StockAdjustmentController::class, 'destroy'])
         ->middleware('permission:inventory.adjust')
         ->name('adjustments.destroy');
+    Route::get('movements', [StockMovementController::class, 'index'])
+        ->middleware('permission:inventory.adjust')
+        ->name('movements.index');
+
     Route::patch('adjustments/{adjustment}/approve', [StockAdjustmentController::class, 'approve'])
         ->middleware('permission:inventory.adjust')
         ->name('adjustments.approve');
@@ -292,9 +253,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('returns', [SaleReturnController::class, 'index'])
         ->middleware('permission:sales.view')
         ->name('returns.index');
-    Route::get('sales/{sale}/returns/create', [SaleReturnController::class, 'create'])
-        ->middleware('permission:sales.refund')
-        ->name('returns.create');
     Route::post('sales/{sale}/returns', [SaleReturnController::class, 'store'])
         ->middleware('permission:sales.refund')
         ->name('returns.store');
@@ -302,9 +260,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('sessions', [CashSessionController::class, 'index'])
         ->middleware('permission:sales.view')
         ->name('sessions.index');
-    Route::get('sessions/create', [CashSessionController::class, 'create'])
-        ->middleware('permission:sales.create')
-        ->name('sessions.create');
     Route::post('sessions', [CashSessionController::class, 'store'])
         ->middleware('permission:sales.create')
         ->name('sessions.store');
@@ -315,15 +270,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('users', [UserController::class, 'index'])
         ->middleware('permission:users.manage')
         ->name('users.index');
-    Route::get('users/create', [UserController::class, 'create'])
-        ->middleware('permission:users.manage')
-        ->name('users.create');
     Route::post('users', [UserController::class, 'store'])
         ->middleware('permission:users.manage')
         ->name('users.store');
-    Route::get('users/{user}/edit', [UserController::class, 'edit'])
-        ->middleware('permission:users.manage')
-        ->name('users.edit');
     Route::match(['put', 'patch'], 'users/{user}', [UserController::class, 'update'])
         ->middleware('permission:users.manage')
         ->name('users.update');
@@ -334,9 +283,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('roles', [RoleController::class, 'index'])
         ->middleware('permission:users.manage')
         ->name('roles.index');
-    Route::get('roles/{role}/edit', [RoleController::class, 'edit'])
+    Route::post('roles', [RoleController::class, 'store'])
         ->middleware('permission:users.manage')
-        ->name('roles.edit');
+        ->name('roles.store');
+    Route::delete('roles/{role}', [RoleController::class, 'destroy'])
+        ->middleware('permission:users.manage')
+        ->name('roles.destroy');
     Route::match(['put', 'patch'], 'roles/{role}', [RoleController::class, 'update'])
         ->middleware('permission:users.manage')
         ->name('roles.update');

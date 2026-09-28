@@ -49,25 +49,6 @@ class CashSessionController extends Controller
     }
 
     /**
-     * Show the form for opening a new session.
-     */
-    public function create(Request $request): Response
-    {
-        Gate::authorize('create', CashSession::class);
-
-        $store = $request->user()->store
-            ?? Store::query()->where('is_main', true)->firstOrFail();
-
-        return Inertia::render('sessions/create', [
-            'store' => $store->only(['id', 'name']),
-            'alreadyOpen' => CashSession::query()
-                ->where('store_id', $store->id)
-                ->where('status', 'open')
-                ->exists(),
-        ]);
-    }
-
-    /**
      * Open a new cash session for the cashier's store.
      */
     public function store(StoreCashSessionRequest $request): RedirectResponse

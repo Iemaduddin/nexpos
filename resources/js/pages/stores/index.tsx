@@ -1,10 +1,8 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { Pencil, Plus, Search, Store as StoreIcon, Trash2 } from 'lucide-react';
 import {
-    create,
     destroy,
-    edit,
     index,
 } from '@/actions/App/Http/Controllers/StoreController';
 import EmptyState from '@/components/empty-state';
@@ -24,6 +22,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { dashboard } from '@/routes';
 import type { Paginated, Store } from '@/types';
+import { StoreCreateDialog, StoreEditDialog } from './store-form';
 
 type Props = {
     stores: Paginated<Store>;
@@ -32,23 +31,27 @@ type Props = {
 
 function IndexActions() {
     const { auth } = usePage().props;
+    const [creating, setCreating] = useState(false);
 
     if (!auth.permissions.includes('settings.manage')) {
         return null;
     }
 
     return (
-        <Button asChild>
-            <Link href={create()}>
+        <>
+            <Button onClick={() => setCreating(true)}>
                 <Plus className="size-4" />
                 Tambah Gerai
-            </Link>
-        </Button>
+            </Button>
+            <StoreCreateDialog open={creating} onOpenChange={setCreating} />
+        </>
     );
 }
 
 export default function StoreIndex({ stores, filters }: Props) {
     const [query, setQuery] = useState(filters.search ?? '');
+    const [creating, setCreating] = useState(false);
+    const [editing, setEditing] = useState<Store | null>(null);
     const [deleting, setDeleting] = useState<Store | null>(null);
 
     useEffect(() => {
@@ -178,15 +181,13 @@ export default function StoreIndex({ stores, filters }: Props) {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    asChild
                                                     title="Ubah"
                                                     aria-label={`Ubah ${store.name}`}
+                                                    onClick={() =>
+                                                        setEditing(store)
+                                                    }
                                                 >
-                                                    <Link
-                                                        href={edit(store.id)}
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Link>
+                                                    <Pencil className="size-4" />
                                                 </Button>
                                                 {!store.is_main && (
                                                     <Button
@@ -224,11 +225,11 @@ export default function StoreIndex({ stores, filters }: Props) {
                             }
                             action={
                                 !filters.search ? (
-                                    <Button asChild>
-                                        <Link href={create()}>
-                                            <Plus className="size-4" />
-                                            Tambah Gerai
-                                        </Link>
+                                    <Button
+                                        onClick={() => setCreating(true)}
+                                    >
+                                        <Plus className="size-4" />
+                                        Tambah Gerai
                                     </Button>
                                 ) : undefined
                             }
@@ -247,6 +248,20 @@ export default function StoreIndex({ stores, filters }: Props) {
                     />
                 </div>
             </Card>
+
+            <StoreCreateDialog open={creating} onOpenChange={setCreating} />
+
+            {editing && (
+                <StoreEditDialog
+                    store={editing}
+                    open={editing !== null}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setEditing(null);
+                        }
+                    }}
+                />
+            )}
 
             <Dialog
                 open={deleting !== null}

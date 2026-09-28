@@ -1,18 +1,25 @@
-import { Form, Link } from '@inertiajs/react';
+import { Form } from '@inertiajs/react';
 import { useState } from 'react';
 import { ImagePlus, Plus, Trash2 } from 'lucide-react';
-import { index } from '@/actions/App/Http/Controllers/ProductController';
+import { store } from '@/actions/App/Http/Controllers/ProductController';
+import { update } from '@/actions/App/Http/Controllers/ProductController';
 import FormSelect from '@/components/form-select';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CurrencyInput } from '@/components/ui/currency-input';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import type { RouteFormDefinition } from '@/wayfinder';
-import type { OptionItem, UnitOption } from '@/types';
+import type { OptionItem, Product, UnitOption } from '@/types';
 
 export type ProductFormInitial = {
     name: string;
@@ -85,6 +92,7 @@ export default function ProductForm({
     units,
     existingImageUrl,
     submitLabel,
+    onCancel,
 }: {
     action: RouteFormDefinition<'post'>;
     initial: ProductFormInitial;
@@ -94,6 +102,7 @@ export default function ProductForm({
     units: UnitOption[];
     existingImageUrl?: string | null;
     submitLabel: string;
+    onCancel: () => void;
 }) {
     const [name, setName] = useState(initial.name);
     const [slug, setSlug] = useState(initial.slug);
@@ -127,17 +136,13 @@ export default function ProductForm({
         <Form
             {...action}
             options={{ preserveScroll: true }}
+            onSuccess={() => onCancel()}
             className="grid max-w-3xl gap-4"
         >
             {({ processing, errors }) => (
                 <>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base font-medium">
-                                Informasi Produk
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="grid gap-5">
+                    <div className="grid gap-5">
+                        <p className="text-sm font-medium">Informasi Produk</p>
                             <div className="grid gap-5 sm:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label htmlFor="name">Nama produk</Label>
@@ -261,16 +266,10 @@ export default function ProductForm({
                                 />
                                 <InputError message={errors.description} />
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base font-medium">
-                                Harga & Stok
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="grid gap-5">
+                    <div className="grid gap-5">
+                        <p className="text-sm font-medium">Harga & Stok</p>
                             <div className="grid gap-5 sm:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label htmlFor="cost_price">
@@ -372,19 +371,16 @@ export default function ProductForm({
                                     </Label>
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base font-medium">
-                                Gambar{' '}
-                                <span className="font-normal text-muted-foreground">
-                                    (opsional)
-                                </span>
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex items-start gap-4">
+                    <div className="grid gap-5">
+                        <p className="text-sm font-medium">
+                            Gambar{' '}
+                            <span className="font-normal text-muted-foreground">
+                                (opsional)
+                            </span>
+                        </p>
+                        <div className="flex items-start gap-4">
                             {preview ? (
                                 <img
                                     src={preview}
@@ -417,17 +413,17 @@ export default function ProductForm({
                                 </p>
                                 <InputError message={errors.image} />
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle className="text-base font-medium">
+                    <div className="grid gap-4">
+                        <div className="flex flex-row items-center justify-between">
+                            <p className="text-sm font-medium">
                                 Varian{' '}
                                 <span className="font-normal text-muted-foreground">
                                     (opsional)
                                 </span>
-                            </CardTitle>
+                            </p>
                             <Button
                                 type="button"
                                 variant="outline"
@@ -437,8 +433,8 @@ export default function ProductForm({
                                 <Plus className="size-4" />
                                 Tambah Varian
                             </Button>
-                        </CardHeader>
-                        <CardContent className="grid gap-4">
+                        </div>
+                        <div className="grid gap-4">
                             {variants.length === 0 && (
                                 <p className="text-sm text-muted-foreground">
                                     Produk tanpa varian dijual sebagai satu
@@ -581,20 +577,156 @@ export default function ProductForm({
                                 </div>
                             ))}
                             <InputError message={errors.variants} />
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={onCancel}
+                        >
+                            Batal
+                        </Button>
                         <Button type="submit" disabled={processing}>
                             {processing && <Spinner />}
                             {submitLabel}
-                        </Button>
-                        <Button variant="outline" asChild>
-                            <Link href={index()}>Batal</Link>
                         </Button>
                     </div>
                 </>
             )}
         </Form>
+    );
+}
+
+const emptyInitial: ProductFormInitial = {
+    name: '',
+    slug: '',
+    sku: '',
+    barcode: '',
+    category_id: '',
+    brand_id: '',
+    unit_id: '',
+    cost_price: '',
+    selling_price: '',
+    tax_rate: '',
+    track_inventory: true,
+    low_stock_threshold: '',
+    description: '',
+    is_active: true,
+};
+
+export function ProductCreateDialog({
+    open,
+    onOpenChange,
+    categories,
+    brands,
+    units,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    categories: OptionItem[];
+    brands: OptionItem[];
+    units: UnitOption[];
+}) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Tambah Produk</DialogTitle>
+                    <DialogDescription>
+                        Buat produk baru beserta harga dan variannya.
+                    </DialogDescription>
+                </DialogHeader>
+                <ProductForm
+                    action={store.form()}
+                    initial={emptyInitial}
+                    initialVariants={[]}
+                    categories={categories}
+                    brands={brands}
+                    units={units}
+                    submitLabel="Simpan Produk"
+                    onCancel={() => onOpenChange(false)}
+                />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+export function ProductEditDialog({
+    product,
+    open,
+    onOpenChange,
+    categories,
+    brands,
+    units,
+}: {
+    product: Product;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    categories: OptionItem[];
+    brands: OptionItem[];
+    units: UnitOption[];
+}) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Ubah Produk</DialogTitle>
+                    <DialogDescription>
+                        Perbarui data produk {product.name}.
+                    </DialogDescription>
+                </DialogHeader>
+                <ProductForm
+                    key={product.id}
+                    action={update.form(product.id)}
+                    initial={{
+                        name: product.name,
+                        slug: product.slug,
+                        sku: product.sku,
+                        barcode: product.barcode ?? '',
+                        category_id: product.category_id.toString(),
+                        brand_id: product.brand_id?.toString() ?? '',
+                        unit_id: product.unit_id.toString(),
+                        cost_price: product.cost_price.toString(),
+                        selling_price: product.selling_price.toString(),
+                        tax_rate: product.tax_rate?.toString() ?? '',
+                        track_inventory: product.track_inventory,
+                        low_stock_threshold:
+                            product.low_stock_threshold?.toString() ?? '',
+                        description: product.description ?? '',
+                        is_active: product.is_active,
+                    }}
+                    initialVariants={(product.variants ?? []).map(
+                        (variant) => {
+                            rowKey += 1;
+
+                            return {
+                                key: rowKey,
+                                id: variant.id,
+                                name: variant.name,
+                                sku: variant.sku,
+                                barcode: variant.barcode ?? '',
+                                cost_price: variant.cost_price.toString(),
+                                selling_price: variant.selling_price.toString(),
+                                low_stock_threshold:
+                                    variant.low_stock_threshold?.toString() ??
+                                    '',
+                            };
+                        },
+                    )}
+                    categories={categories}
+                    brands={brands}
+                    units={units}
+                    existingImageUrl={
+                        product.image_path
+                            ? `/storage/${product.image_path}`
+                            : null
+                    }
+                    submitLabel="Simpan Perubahan"
+                    onCancel={() => onOpenChange(false)}
+                />
+            </DialogContent>
+        </Dialog>
     );
 }

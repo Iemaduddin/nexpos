@@ -1,7 +1,7 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import { Printer, Undo2 } from 'lucide-react';
 import { index } from '@/actions/App/Http/Controllers/SaleController';
-import { create as createReturn } from '@/actions/App/Http/Controllers/SaleReturnController';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { formatIDR, formatQty } from '@/lib/format';
 import { paymentMethodLabel, saleStatusLabel } from '@/lib/sale';
 import { dashboard } from '@/routes';
 import type { Sale } from '@/types';
+import { ReturnCreateDialog } from './return-dialog';
 
 type Business = {
     name: string;
@@ -34,6 +35,7 @@ function formatDateTime(value: string | null): string {
 
 function SaleActions({ sale }: { sale: Sale }) {
     const { auth } = usePage().props;
+    const [returning, setReturning] = useState(false);
     const canRefund =
         auth.permissions.includes('sales.refund') &&
         (sale.status === 'completed' || sale.status === 'partial_refund');
@@ -45,13 +47,16 @@ function SaleActions({ sale }: { sale: Sale }) {
                 Cetak Struk
             </Button>
             {canRefund && (
-                <Button size="sm" asChild>
-                    <Link href={createReturn(sale.id)}>
-                        <Undo2 className="size-4" />
-                        Buat Retur
-                    </Link>
+                <Button size="sm" onClick={() => setReturning(true)}>
+                    <Undo2 className="size-4" />
+                    Buat Retur
                 </Button>
             )}
+            <ReturnCreateDialog
+                sale={sale}
+                open={returning}
+                onOpenChange={setReturning}
+            />
         </div>
     );
 }

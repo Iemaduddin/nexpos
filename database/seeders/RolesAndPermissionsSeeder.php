@@ -47,7 +47,6 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $manager = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $manager->syncPermissions([
-            'users.view',
             'products.view',
             'products.manage',
             'inventory.view',

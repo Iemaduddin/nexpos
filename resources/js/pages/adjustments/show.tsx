@@ -4,7 +4,6 @@ import { Pencil, Trash2 } from 'lucide-react';
 import {
     approve,
     destroy,
-    edit,
     index,
 } from '@/actions/App/Http/Controllers/StockAdjustmentController';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +21,12 @@ import {
 import { adjustmentStatusLabel, adjustmentTypeLabel } from '@/lib/adjustment';
 import { formatQty } from '@/lib/format';
 import { dashboard } from '@/routes';
-import type { StockAdjustment } from '@/types';
+import type {
+    ProductOption,
+    StockAdjustment,
+    StoreOption,
+} from '@/types';
+import { AdjustmentEditDialog } from './adjustment-form';
 
 function formatDate(value: string | null): string {
     if (!value) {
@@ -54,6 +58,11 @@ export default function AdjustmentShow({
 
     const [approving, setApproving] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const { stores, products } = usePage().props as unknown as {
+        stores: StoreOption[];
+        products: ProductOption[];
+    };
 
     const items = adjustment.items ?? [];
     const isDraft = adjustment.status === 'draft';
@@ -89,12 +98,21 @@ export default function AdjustmentShow({
                         </div>
                         {canAdjust && isDraft && (
                             <div className="flex flex-wrap items-center gap-2">
-                                <Button variant="outline" size="sm" asChild>
-                                    <Link href={edit(adjustment.id)}>
-                                        <Pencil className="size-4" />
-                                        Ubah
-                                    </Link>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setEditing(true)}
+                                >
+                                    <Pencil className="size-4" />
+                                    Ubah
                                 </Button>
+                                <AdjustmentEditDialog
+                                    adjustment={adjustment}
+                                    open={editing}
+                                    onOpenChange={setEditing}
+                                    stores={stores ?? []}
+                                    products={products ?? []}
+                                />
                                 <Button
                                     size="sm"
                                     onClick={() => setApproving(true)}

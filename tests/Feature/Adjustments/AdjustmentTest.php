@@ -159,7 +159,6 @@ test('approving twice and editing after approval are blocked', function () {
     expect($adjustment->refresh()->status)->toBe('approved');
 
     $this->patch(route('adjustments.approve', $adjustment))->assertRedirect();
-    $this->get(route('adjustments.edit', $adjustment))->assertRedirect();
 
     $master = adjustmentMasterData();
     $this->put(route('adjustments.update', $adjustment), [

@@ -2,7 +2,6 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { Eye, Plus, Search, ShoppingCart } from 'lucide-react';
 import {
-    create,
     index,
     show,
 } from '@/actions/App/Http/Controllers/PurchaseController';
@@ -15,7 +14,14 @@ import { Input } from '@/components/ui/input';
 import { formatIDR } from '@/lib/format';
 import { purchasePaymentLabel, purchaseStatusLabel } from '@/lib/purchase';
 import { dashboard } from '@/routes';
-import type { Paginated, Purchase } from '@/types';
+import type {
+    OptionItem,
+    Paginated,
+    ProductOption,
+    Purchase,
+    StoreOption,
+} from '@/types';
+import { PurchaseCreateDialog } from './purchase-form';
 
 type Props = {
     purchases: Paginated<Purchase>;
@@ -47,20 +53,46 @@ function statusVariant(
     }
 }
 
+function useFormOptions(): {
+    suppliers: OptionItem[];
+    stores: StoreOption[];
+    products: ProductOption[];
+} {
+    const { suppliers, stores, products } = usePage().props as unknown as {
+        suppliers: OptionItem[];
+        stores: StoreOption[];
+        products: ProductOption[];
+    };
+    return {
+        suppliers: suppliers ?? [],
+        stores: stores ?? [],
+        products: products ?? [],
+    };
+}
+
 function IndexActions() {
     const { auth } = usePage().props;
+    const [creating, setCreating] = useState(false);
+    const { suppliers, stores, products } = useFormOptions();
 
     if (!auth.permissions.includes('inventory.purchase')) {
         return null;
     }
 
     return (
-        <Button asChild>
-            <Link href={create()}>
+        <>
+            <Button onClick={() => setCreating(true)}>
                 <Plus className="size-4" />
                 Buat Pembelian
-            </Link>
-        </Button>
+            </Button>
+            <PurchaseCreateDialog
+                open={creating}
+                onOpenChange={setCreating}
+                suppliers={suppliers}
+                stores={stores}
+                products={products}
+            />
+        </>
     );
 }
 

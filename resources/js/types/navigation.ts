@@ -25,4 +25,6 @@ export type SidebarNavItem = {
 export type SidebarNavGroup = {
     label: string;
     items: SidebarNavItem[];
+    /** Status buka saat pertama load. Default true (terbuka). */
+    defaultOpen?: boolean;
 };

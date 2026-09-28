@@ -36,16 +36,6 @@ class UnitController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        Gate::authorize('create', Unit::class);
-
-        return Inertia::render('units/create');
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(StoreUnitRequest $request): RedirectResponse
@@ -55,18 +45,6 @@ class UnitController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Satuan berhasil ditambahkan.']);
 
         return to_route('units.index');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Unit $unit): Response
-    {
-        Gate::authorize('update', $unit);
-
-        return Inertia::render('units/edit', [
-            'unit' => $unit,
-        ]);
     }
 
     /**

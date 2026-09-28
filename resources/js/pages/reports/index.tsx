@@ -1,8 +1,11 @@
 import { Head, Link } from "@inertiajs/react";
 import { ResponsiveBar } from "@nivo/bar";
 import { ResponsiveLine } from "@nivo/line";
-import { CalendarRange, TrendingDown, TrendingUp } from "lucide-react";
-import { index } from "@/actions/App/Http/Controllers/ReportController";
+import { CalendarRange, Download, TrendingDown, TrendingUp } from "lucide-react";
+import {
+    exportCsv,
+    index,
+} from "@/actions/App/Http/Controllers/ReportController";
 import EmptyState from "@/components/empty-state";
 import StatCard from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
@@ -102,6 +105,15 @@ export default function ReportIndex({
                             </Link>
                         </Button>
                     ))}
+                    <Button size="sm" variant="outline" asChild>
+                        <a
+                            href={exportCsv.url({ query: { period } })}
+                            download
+                        >
+                            <Download className="size-4" />
+                            Export CSV
+                        </a>
+                    </Button>
                 </div>
             </div>
 

@@ -12,7 +12,7 @@ class StoreRoleRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return $this->user()->can('users.manage');
     }
 
     /**
@@ -23,7 +23,7 @@ class StoreRoleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'name' => ['required', 'string', 'lowercase', 'alpha_dash:ascii', 'max:50', 'unique:roles,name'],
         ];
     }
 }

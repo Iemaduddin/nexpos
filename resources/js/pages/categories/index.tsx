@@ -1,10 +1,8 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { Package, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import {
-    create,
     destroy,
-    edit,
     index,
 } from '@/actions/App/Http/Controllers/CategoryController';
 import EmptyState from '@/components/empty-state';
@@ -23,27 +21,42 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { dashboard } from '@/routes';
-import type { Category, Paginated } from '@/types';
+import type { Category, CategoryParentOption, Paginated } from '@/types';
+import { CategoryCreateDialog, CategoryEditDialog } from './category-form';
 
 type Props = {
     categories: Paginated<Category>;
     filters: { search: string };
+    parents: CategoryParentOption[];
 };
+
+function useParents(): CategoryParentOption[] {
+    const { parents } = usePage().props as unknown as {
+        parents: CategoryParentOption[];
+    };
+    return parents ?? [];
+}
 
 function IndexActions() {
     const { auth } = usePage().props;
+    const [creating, setCreating] = useState(false);
 
     if (!auth.permissions.includes('products.manage')) {
         return null;
     }
 
     return (
-        <Button asChild>
-            <Link href={create()}>
+        <>
+            <Button onClick={() => setCreating(true)}>
                 <Plus className="size-4" />
                 Tambah Kategori
-            </Link>
-        </Button>
+            </Button>
+            <CategoryCreateDialog
+                open={creating}
+                onOpenChange={setCreating}
+                parents={useParents()}
+            />
+        </>
     );
 }
 
@@ -52,6 +65,8 @@ export default function CategoryIndex({ categories, filters }: Props) {
     const canManage = auth.permissions.includes('products.manage');
 
     const [query, setQuery] = useState(filters.search ?? '');
+    const [creating, setCreating] = useState(false);
+    const [editing, setEditing] = useState<Category | null>(null);
     const [deleting, setDeleting] = useState<Category | null>(null);
 
     useEffect(() => {
@@ -181,17 +196,13 @@ export default function CategoryIndex({ categories, filters }: Props) {
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        asChild
                                                         title="Ubah"
                                                         aria-label={`Ubah ${category.name}`}
+                                                        onClick={() =>
+                                                            setEditing(category)
+                                                        }
                                                     >
-                                                        <Link
-                                                            href={edit(
-                                                                category.id,
-                                                            )}
-                                                        >
-                                                            <Pencil className="size-4" />
-                                                        </Link>
+                                                        <Pencil className="size-4" />
                                                     </Button>
                                                     <Button
                                                         variant="ghost"
@@ -230,11 +241,11 @@ export default function CategoryIndex({ categories, filters }: Props) {
                             }
                             action={
                                 !filters.search && canManage ? (
-                                    <Button asChild>
-                                        <Link href={create()}>
-                                            <Plus className="size-4" />
-                                            Tambah Kategori
-                                        </Link>
+                                    <Button
+                                        onClick={() => setCreating(true)}
+                                    >
+                                        <Plus className="size-4" />
+                                        Tambah Kategori
                                     </Button>
                                 ) : undefined
                             }
@@ -253,6 +264,25 @@ export default function CategoryIndex({ categories, filters }: Props) {
                     />
                 </div>
             </Card>
+
+            <CategoryCreateDialog
+                open={creating}
+                onOpenChange={setCreating}
+                parents={useParents()}
+            />
+
+            {editing && (
+                <CategoryEditDialog
+                    category={editing}
+                    open={editing !== null}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setEditing(null);
+                        }
+                    }}
+                    parents={useParents()}
+                />
+            )}
 
             <Dialog
                 open={deleting !== null}

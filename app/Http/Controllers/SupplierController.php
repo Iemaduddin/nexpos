@@ -41,16 +41,6 @@ class SupplierController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        Gate::authorize('create', Supplier::class);
-
-        return Inertia::render('suppliers/create');
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(StoreSupplierRequest $request): RedirectResponse
@@ -72,14 +62,20 @@ class SupplierController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Display the supplier with recent purchase history.
      */
-    public function edit(Supplier $supplier): Response
+    public function show(Supplier $supplier): Response
     {
-        Gate::authorize('update', $supplier);
+        Gate::authorize('view', $supplier);
 
-        return Inertia::render('suppliers/edit', [
+        $purchases = $supplier->purchases()
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get(['id', 'number', 'status', 'grand_total', 'created_at']);
+
+        return Inertia::render('suppliers/show', [
             'supplier' => $supplier,
+            'purchases' => $purchases,
         ]);
     }
 

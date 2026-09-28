@@ -3,8 +3,8 @@ import { useState } from 'react';
 import { Plus, Wallet } from 'lucide-react';
 import {
     close,
-    create,
     index,
+    store,
 } from '@/actions/App/Http/Controllers/CashSessionController';
 import { pos } from '@/actions/App/Http/Controllers/SaleController';
 import EmptyState from '@/components/empty-state';
@@ -45,7 +45,12 @@ function formatDateTime(value: string | null): string {
 }
 
 function IndexActions() {
-    const { auth, openSessions } = usePage().props;
+    const { auth, openSessions, userStore } = usePage().props as unknown as {
+        auth: { permissions: string[] };
+        openSessions: unknown[];
+        userStore: { id: number; name: string } | null;
+    };
+    const [creating, setCreating] = useState(false);
     const hasOpen = Array.isArray(openSessions) && openSessions.length > 0;
 
     if (!auth.permissions.includes('sales.create') || hasOpen) {
@@ -53,12 +58,73 @@ function IndexActions() {
     }
 
     return (
-        <Button asChild>
-            <Link href={create()}>
+        <>
+            <Button onClick={() => setCreating(true)}>
                 <Plus className="size-4" />
                 Buka Sesi
-            </Link>
-        </Button>
+            </Button>
+            <Dialog open={creating} onOpenChange={setCreating}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Buka Sesi Kas</DialogTitle>
+                        <DialogDescription>
+                            Catat saldo awal laci sebelum mulai berjualan.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Form
+                        {...store.form()}
+                        options={{ preserveScroll: true }}
+                        onSuccess={() => setCreating(false)}
+                        className="grid gap-5"
+                    >
+                        {({ processing, errors }) => (
+                            <>
+                                <div className="grid gap-2">
+                                    <Label>Toko</Label>
+                                    <p className="text-sm font-medium">
+                                        {userStore?.name ?? '–'}
+                                    </p>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="opening_balance">
+                                        Saldo awal laci (Rp)
+                                    </Label>
+                                    <CurrencyInput
+                                        id="opening_balance"
+                                        name="opening_balance"
+                                        defaultValue="0"
+                                        required
+                                        autoFocus
+                                        className="tabular-nums"
+                                    />
+                                    <InputError
+                                        message={errors.opening_balance}
+                                    />
+                                </div>
+                                <div className="flex items-center justify-end gap-2">
+                                    <DialogClose asChild>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => setCreating(false)}
+                                        >
+                                            Batal
+                                        </Button>
+                                    </DialogClose>
+                                    <Button
+                                        type="submit"
+                                        disabled={processing}
+                                    >
+                                        {processing && <Spinner />}
+                                        Buka Sesi
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+                    </Form>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
 
@@ -275,6 +341,7 @@ export default function SessionIndex({
                         <Form
                             {...close.form(closing.id)}
                             options={{ preserveScroll: true }}
+                            onSuccess={() => setClosing(null)}
                         >
                             {({ processing, errors }) => (
                                 <div className="grid gap-3">

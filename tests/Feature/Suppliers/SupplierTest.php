@@ -59,6 +59,24 @@ test('name is required', function () {
         ->assertSessionHasErrors('name');
 });
 
+test('show needs view permission and includes recent purchases', function () {
+    $supplier = Supplier::create(['code' => 'SUP-1', 'name' => 'Distributor Maju']);
+
+    $this->get(route('suppliers.show', $supplier))->assertRedirect(route('login'));
+
+    $this->actingAs(User::factory()->create());
+    $this->get(route('suppliers.show', $supplier))->assertForbidden();
+
+    $this->actingAs(supplierUser(['suppliers.view']));
+    $this->get(route('suppliers.show', $supplier))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('suppliers/show')
+            ->where('supplier.name', 'Distributor Maju')
+            ->has('purchases', 0)
+        );
+});
+
 test('a supplier with purchases cannot be deleted', function () {
     $this->actingAs(supplierUser(['suppliers.manage']));
     $supplier = Supplier::create(['code' => 'SUP-1', 'name' => 'Distributor Maju']);

@@ -1,8 +1,9 @@
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import {
     index,
     store,
 } from '@/actions/App/Http/Controllers/PurchaseController';
+import { show as showDocument } from '@/actions/App/Http/Controllers/DocumentController';
 import PurchaseForm, {
     type PurchaseItemRow,
 } from '@/pages/purchases/purchase-form';
@@ -64,6 +65,7 @@ export default function DocumentVerify({
                 products={products}
                 submitLabel="Simpan Sebagai Draf Pembelian"
                 documentId={initial.document_id}
+                onCancel={() => router.get(showDocument(document.id).url)}
             />
         </>
     );

@@ -1,17 +1,28 @@
-import { Form, Link } from '@inertiajs/react';
+import { Form } from '@inertiajs/react';
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { index } from '@/actions/App/Http/Controllers/StockAdjustmentController';
+import { store } from '@/actions/App/Http/Controllers/StockAdjustmentController';
+import { update } from '@/actions/App/Http/Controllers/StockAdjustmentController';
 import FormSelect from '@/components/form-select';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { adjustmentTypeLabel } from '@/lib/adjustment';
 import type { RouteFormDefinition } from '@/wayfinder';
-import type { ProductOption, StoreOption } from '@/types';
+import type {
+    ProductOption,
+    StockAdjustment,
+    StoreOption,
+} from '@/types';
 
 export type AdjustmentFormInitial = {
     store_id: string;
@@ -46,6 +57,7 @@ export default function AdjustmentForm({
     stores,
     products,
     submitLabel,
+    onCancel,
 }: {
     action: RouteFormDefinition<'post'>;
     initial: AdjustmentFormInitial;
@@ -53,6 +65,7 @@ export default function AdjustmentForm({
     stores: StoreOption[];
     products: ProductOption[];
     submitLabel: string;
+    onCancel: () => void;
 }) {
     const [items, setItems] = useState<AdjustmentItemRow[]>(initialItems);
 
@@ -74,68 +87,61 @@ export default function AdjustmentForm({
         <Form
             {...action}
             options={{ preserveScroll: true }}
-            className="grid max-w-3xl gap-4"
+            onSuccess={() => onCancel()}
+            className="grid gap-4"
         >
             {({ processing, errors }) => (
                 <>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base font-medium">
-                                Informasi Penyesuaian
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="grid gap-5">
-                            <div className="grid gap-5 sm:grid-cols-2">
-                                <FormSelect
-                                    id="store_id"
-                                    name="store_id"
-                                    label="Toko"
-                                    defaultValue={initial.store_id}
-                                    options={stores}
-                                    error={errors.store_id}
-                                    placeholder="— Pilih toko —"
-                                />
-                                <FormSelect
-                                    id="type"
-                                    name="type"
-                                    label="Jenis penyesuaian"
-                                    defaultValue={initial.type}
-                                    options={typeOptions}
-                                    error={errors.type}
-                                    placeholder="— Pilih jenis —"
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="reason">
-                                    Alasan{' '}
-                                    <span className="font-normal text-muted-foreground">
-                                        (opsional)
-                                    </span>
-                                </Label>
-                                <textarea
-                                    id="reason"
-                                    name="reason"
-                                    defaultValue={initial.reason}
-                                    rows={2}
-                                    maxLength={1000}
-                                    placeholder="cth. Hasil opname 22 Sep, selisih rak A"
-                                    className="flex min-h-16 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                                />
-                                <InputError message={errors.reason} />
-                            </div>
-                            <p className="rounded-lg border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-                                Stok sistem dicatat otomatis dari data terkini
-                                saat draf disetujui, lalu selisihnya dibukukan
-                                ke ledger.
-                            </p>
-                        </CardContent>
-                    </Card>
+                    <div className="grid gap-2">
+                        <p className="text-sm font-medium">Informasi Penyesuaian</p>
+                        <div className="grid gap-5 sm:grid-cols-2">
+                            <FormSelect
+                                id="store_id"
+                                name="store_id"
+                                label="Toko"
+                                defaultValue={initial.store_id}
+                                options={stores}
+                                error={errors.store_id}
+                                placeholder="— Pilih toko —"
+                            />
+                            <FormSelect
+                                id="type"
+                                name="type"
+                                label="Jenis penyesuaian"
+                                defaultValue={initial.type}
+                                options={typeOptions}
+                                error={errors.type}
+                                placeholder="— Pilih jenis —"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="reason">
+                                Alasan{' '}
+                                <span className="font-normal text-muted-foreground">
+                                    (opsional)
+                                </span>
+                            </Label>
+                            <textarea
+                                id="reason"
+                                name="reason"
+                                defaultValue={initial.reason}
+                                rows={2}
+                                maxLength={1000}
+                                placeholder="cth. Hasil opname 22 Sep, selisih rak A"
+                                className="flex min-h-16 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                            />
+                            <InputError message={errors.reason} />
+                        </div>
+                        <p className="rounded-lg border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                            Stok sistem dicatat otomatis dari data terkini
+                            saat draf disetujui, lalu selisihnya dibukukan
+                            ke ledger.
+                        </p>
+                    </div>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle className="text-base font-medium">
-                                Hasil Opname
-                            </CardTitle>
+                    <div className="grid gap-4">
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium">Hasil Opname</p>
                             <Button
                                 type="button"
                                 variant="outline"
@@ -150,185 +156,267 @@ export default function AdjustmentForm({
                                 <Plus className="size-4" />
                                 Tambah Item
                             </Button>
-                        </CardHeader>
-                        <CardContent className="grid gap-4">
-                            {items.length === 0 && (
-                                <p className="text-sm text-muted-foreground">
-                                    Belum ada item. Tambahkan minimal satu
-                                    barang hasil opname.
-                                </p>
-                            )}
-                            {items.map((row, i) => {
-                                const product = productOf(row);
-                                const needsVariant =
-                                    (product?.variants.length ?? 0) > 0;
+                        </div>
+                        {items.length === 0 && (
+                            <p className="text-sm text-muted-foreground">
+                                Belum ada item. Tambahkan minimal satu
+                                barang hasil opname.
+                            </p>
+                        )}
+                        {items.map((row, i) => {
+                            const product = productOf(row);
+                            const needsVariant =
+                                (product?.variants.length ?? 0) > 0;
 
-                                return (
-                                    <div
-                                        key={row.key}
-                                        className="grid gap-3 rounded-lg border p-4"
-                                    >
-                                        <div className="grid gap-3 sm:grid-cols-2">
-                                            <div className="grid gap-2">
-                                                <Label
-                                                    htmlFor={`items-${row.key}-product`}
-                                                >
-                                                    Produk
-                                                </Label>
-                                                <select
-                                                    id={`items-${row.key}-product`}
-                                                    name={`items[${i}][product_id]`}
-                                                    value={row.product_id}
-                                                    onChange={(e) =>
-                                                        chooseProduct(
-                                                            row.key,
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                                                >
-                                                    <option value="">
-                                                        — Pilih produk —
+                            return (
+                                <div
+                                    key={row.key}
+                                    className="grid gap-3 rounded-lg border p-4"
+                                >
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                        <div className="grid gap-2">
+                                            <Label
+                                                htmlFor={`items-${row.key}-product`}
+                                            >
+                                                Produk
+                                            </Label>
+                                            <select
+                                                id={`items-${row.key}-product`}
+                                                name={`items[${i}][product_id]`}
+                                                value={row.product_id}
+                                                onChange={(e) =>
+                                                    chooseProduct(
+                                                        row.key,
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                            >
+                                                <option value="">
+                                                    — Pilih produk —
+                                                </option>
+                                                {products.map((p) => (
+                                                    <option
+                                                        key={p.id}
+                                                        value={p.id}
+                                                    >
+                                                        {p.name} ({p.sku})
                                                     </option>
-                                                    {products.map((p) => (
-                                                        <option
-                                                            key={p.id}
-                                                            value={p.id}
-                                                        >
-                                                            {p.name} ({p.sku})
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                                <InputError
-                                                    message={
-                                                        errors[
-                                                            `items.${i}.product_id`
-                                                        ]
-                                                    }
-                                                />
-                                            </div>
-                                            <div className="grid gap-2">
-                                                <Label
-                                                    htmlFor={`items-${row.key}-variant`}
-                                                >
-                                                    Varian{' '}
-                                                    {needsVariant ? (
-                                                        <span className="font-normal text-destructive">
-                                                            (wajib)
-                                                        </span>
-                                                    ) : (
-                                                        <span className="font-normal text-muted-foreground">
-                                                            (opsional)
-                                                        </span>
-                                                    )}
-                                                </Label>
-                                                <select
-                                                    id={`items-${row.key}-variant`}
-                                                    name={`items[${i}][variant_id]`}
-                                                    value={row.variant_id}
-                                                    onChange={(e) =>
-                                                        updateRow(row.key, {
-                                                            variant_id:
-                                                                e.target.value,
-                                                        })
-                                                    }
-                                                    disabled={!product}
-                                                    className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
-                                                >
-                                                    <option value="">
-                                                        — Tanpa varian —
-                                                    </option>
-                                                    {product?.variants.map(
-                                                        (v) => (
-                                                            <option
-                                                                key={v.id}
-                                                                value={v.id}
-                                                            >
-                                                                {v.name} (
-                                                                {v.sku})
-                                                            </option>
-                                                        ),
-                                                    )}
-                                                </select>
-                                                <InputError
-                                                    message={
-                                                        errors[
-                                                            `items.${i}.variant_id`
-                                                        ]
-                                                    }
-                                                />
-                                            </div>
+                                                ))}
+                                            </select>
+                                            <InputError
+                                                message={
+                                                    errors[
+                                                        `items.${i}.product_id`
+                                                    ]
+                                                }
+                                            />
                                         </div>
-                                        <div className="grid gap-3 sm:grid-cols-2">
-                                            <div className="grid gap-2">
-                                                <Label
-                                                    htmlFor={`items-${row.key}-actual`}
-                                                >
-                                                    Stok fisik (hasil hitung)
-                                                </Label>
-                                                <Input
-                                                    id={`items-${row.key}-actual`}
-                                                    name={`items[${i}][qty_actual]`}
-                                                    type="number"
-                                                    min={0}
-                                                    step="any"
-                                                    value={row.qty_actual}
-                                                    onChange={(e) =>
-                                                        updateRow(row.key, {
-                                                            qty_actual:
-                                                                e.target.value,
-                                                        })
-                                                    }
-                                                    required
-                                                    className="tabular-nums"
-                                                />
-                                                <InputError
-                                                    message={
-                                                        errors[
-                                                            `items.${i}.qty_actual`
-                                                        ]
-                                                    }
-                                                />
-                                            </div>
-                                            <div className="content-end">
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="text-destructive hover:text-destructive"
-                                                    onClick={() =>
-                                                        setItems((rows) =>
-                                                            rows.filter(
-                                                                (r) =>
-                                                                    r.key !==
-                                                                    row.key,
-                                                            ),
-                                                        )
-                                                    }
-                                                >
-                                                    <Trash2 className="size-4" />
-                                                    Hapus item
-                                                </Button>
-                                            </div>
+                                        <div className="grid gap-2">
+                                            <Label
+                                                htmlFor={`items-${row.key}-variant`}
+                                            >
+                                                Varian{' '}
+                                                {needsVariant ? (
+                                                    <span className="font-normal text-destructive">
+                                                        (wajib)
+                                                    </span>
+                                                ) : (
+                                                    <span className="font-normal text-muted-foreground">
+                                                        (opsional)
+                                                    </span>
+                                                )}
+                                            </Label>
+                                            <select
+                                                id={`items-${row.key}-variant`}
+                                                name={`items[${i}][variant_id]`}
+                                                value={row.variant_id}
+                                                onChange={(e) =>
+                                                    updateRow(row.key, {
+                                                        variant_id:
+                                                            e.target.value,
+                                                    })
+                                                }
+                                                disabled={!product}
+                                                className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+                                            >
+                                                <option value="">
+                                                    — Tanpa varian —
+                                                </option>
+                                                {product?.variants.map(
+                                                    (v) => (
+                                                        <option
+                                                            key={v.id}
+                                                            value={v.id}
+                                                        >
+                                                            {v.name} (
+                                                            {v.sku})
+                                                        </option>
+                                                    ),
+                                                )}
+                                            </select>
+                                            <InputError
+                                                message={
+                                                    errors[
+                                                        `items.${i}.variant_id`
+                                                    ]
+                                                }
+                                            />
                                         </div>
                                     </div>
-                                );
-                            })}
-                            <InputError message={errors.items} />
-                        </CardContent>
-                    </Card>
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                        <div className="grid gap-2">
+                                            <Label
+                                                htmlFor={`items-${row.key}-actual`}
+                                            >
+                                                Stok fisik (hasil hitung)
+                                            </Label>
+                                            <Input
+                                                id={`items-${row.key}-actual`}
+                                                name={`items[${i}][qty_actual]`}
+                                                type="number"
+                                                min={0}
+                                                step="any"
+                                                value={row.qty_actual}
+                                                onChange={(e) =>
+                                                    updateRow(row.key, {
+                                                        qty_actual:
+                                                            e.target.value,
+                                                    })
+                                                }
+                                                required
+                                                className="tabular-nums"
+                                            />
+                                            <InputError
+                                                message={
+                                                    errors[
+                                                        `items.${i}.qty_actual`
+                                                    ]
+                                                }
+                                            />
+                                        </div>
+                                        <div className="content-end">
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-destructive hover:text-destructive"
+                                                onClick={() =>
+                                                    setItems((rows) =>
+                                                        rows.filter(
+                                                            (r) =>
+                                                                r.key !==
+                                                                row.key,
+                                                        ),
+                                                    )
+                                                }
+                                            >
+                                                <Trash2 className="size-4" />
+                                                Hapus item
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        <InputError message={errors.items} />
+                    </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={onCancel}
+                        >
+                            Batal
+                        </Button>
                         <Button type="submit" disabled={processing}>
                             {processing && <Spinner />}
                             {submitLabel}
-                        </Button>
-                        <Button variant="outline" asChild>
-                            <Link href={index()}>Batal</Link>
                         </Button>
                     </div>
                 </>
             )}
         </Form>
+    );
+}
+
+export function AdjustmentCreateDialog({
+    open,
+    onOpenChange,
+    stores,
+    products,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    stores: StoreOption[];
+    products: ProductOption[];
+}) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Buat Penyesuaian Stok</DialogTitle>
+                    <DialogDescription>
+                        Catat hasil opname untuk menyesuaikan stok sistem.
+                    </DialogDescription>
+                </DialogHeader>
+                <AdjustmentForm
+                    action={store.form()}
+                    initial={{ store_id: '', type: '', reason: '' }}
+                    initialItems={[newAdjustmentRow()]}
+                    stores={stores}
+                    products={products}
+                    submitLabel="Simpan Draf"
+                    onCancel={() => onOpenChange(false)}
+                />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+export function AdjustmentEditDialog({
+    adjustment,
+    open,
+    onOpenChange,
+    stores,
+    products,
+}: {
+    adjustment: StockAdjustment;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    stores: StoreOption[];
+    products: ProductOption[];
+}) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-h-[85svh] overflow-y-auto sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Ubah Penyesuaian</DialogTitle>
+                    <DialogDescription>
+                        Perbarui draf penyesuaian {adjustment.number}.
+                    </DialogDescription>
+                </DialogHeader>
+                <AdjustmentForm
+                    key={adjustment.id}
+                    action={update.form(adjustment.id)}
+                    initial={{
+                        store_id: adjustment.store_id.toString(),
+                        type: adjustment.type,
+                        reason: adjustment.reason ?? '',
+                    }}
+                    initialItems={(adjustment.items ?? []).map((item) => ({
+                        ...newAdjustmentRow(),
+                        product_id: item.product_id.toString(),
+                        variant_id: item.variant_id?.toString() ?? '',
+                        qty_actual: item.qty_actual.toString(),
+                    }))}
+                    stores={stores}
+                    products={products}
+                    submitLabel="Simpan Perubahan"
+                    onCancel={() => onOpenChange(false)}
+                />
+            </DialogContent>
+        </Dialog>
     );
 }

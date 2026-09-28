@@ -138,7 +138,6 @@ test('only drafts can be edited or ordered twice', function () {
     $this->patch(route('purchases.order', $purchase))->assertRedirect();
     expect($purchase->refresh()->status)->toBe('ordered');
 
-    $this->get(route('purchases.edit', $purchase))->assertRedirect();
     $this->patch(route('purchases.order', $purchase))->assertRedirect();
     expect($purchase->refresh()->status)->toBe('ordered');
 });

@@ -1,10 +1,8 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { Pencil, Plus, Ruler, Search, Trash2 } from 'lucide-react';
 import {
-    create,
     destroy,
-    edit,
     index,
 } from '@/actions/App/Http/Controllers/UnitController';
 import EmptyState from '@/components/empty-state';
@@ -24,6 +22,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { dashboard } from '@/routes';
 import type { Paginated, Unit } from '@/types';
+import { UnitCreateDialog, UnitEditDialog } from './unit-form';
 
 type Props = {
     units: Paginated<Unit>;
@@ -32,18 +31,20 @@ type Props = {
 
 function IndexActions() {
     const { auth } = usePage().props;
+    const [creating, setCreating] = useState(false);
 
     if (!auth.permissions.includes('products.manage')) {
         return null;
     }
 
     return (
-        <Button asChild>
-            <Link href={create()}>
+        <>
+            <Button onClick={() => setCreating(true)}>
                 <Plus className="size-4" />
                 Tambah Satuan
-            </Link>
-        </Button>
+            </Button>
+            <UnitCreateDialog open={creating} onOpenChange={setCreating} />
+        </>
     );
 }
 
@@ -52,6 +53,8 @@ export default function UnitIndex({ units, filters }: Props) {
     const canManage = auth.permissions.includes('products.manage');
 
     const [query, setQuery] = useState(filters.search ?? '');
+    const [creating, setCreating] = useState(false);
+    const [editing, setEditing] = useState<Unit | null>(null);
     const [deleting, setDeleting] = useState<Unit | null>(null);
 
     useEffect(() => {
@@ -178,15 +181,13 @@ export default function UnitIndex({ units, filters }: Props) {
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        asChild
                                                         title="Ubah"
                                                         aria-label={`Ubah ${unit.name}`}
+                                                        onClick={() =>
+                                                            setEditing(unit)
+                                                        }
                                                     >
-                                                        <Link
-                                                            href={edit(unit.id)}
-                                                        >
-                                                            <Pencil className="size-4" />
-                                                        </Link>
+                                                        <Pencil className="size-4" />
                                                     </Button>
                                                     <Button
                                                         variant="ghost"
@@ -223,11 +224,11 @@ export default function UnitIndex({ units, filters }: Props) {
                             }
                             action={
                                 !filters.search && canManage ? (
-                                    <Button asChild>
-                                        <Link href={create()}>
-                                            <Plus className="size-4" />
-                                            Tambah Satuan
-                                        </Link>
+                                    <Button
+                                        onClick={() => setCreating(true)}
+                                    >
+                                        <Plus className="size-4" />
+                                        Tambah Satuan
                                     </Button>
                                 ) : undefined
                             }
@@ -246,6 +247,20 @@ export default function UnitIndex({ units, filters }: Props) {
                     />
                 </div>
             </Card>
+
+            <UnitCreateDialog open={creating} onOpenChange={setCreating} />
+
+            {editing && (
+                <UnitEditDialog
+                    unit={editing}
+                    open={editing !== null}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setEditing(null);
+                        }
+                    }}
+                />
+            )}
 
             <Dialog
                 open={deleting !== null}

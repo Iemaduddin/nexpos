@@ -5,6 +5,7 @@ import {
     Boxes,
     Building2,
     FileScan,
+    History,
     LayoutGrid,
     Package,
     ReceiptText,
@@ -32,6 +33,7 @@ import {
 } from '@/actions/App/Http/Controllers/SaleController';
 import { index as returnsIndex } from '@/actions/App/Http/Controllers/SaleReturnController';
 import { index as adjustmentsIndex } from '@/actions/App/Http/Controllers/StockAdjustmentController';
+import { index as movementsIndex } from '@/actions/App/Http/Controllers/StockMovementController';
 import { index as aiIndex } from '@/actions/App/Http/Controllers/AiChatController';
 import { index as documentsIndex } from '@/actions/App/Http/Controllers/DocumentController';
 import { index as suppliersIndex } from '@/actions/App/Http/Controllers/SupplierController';
@@ -96,6 +98,7 @@ const navGroups: SidebarNavGroup[] = [
     },
     {
         label: 'Inventaris',
+        defaultOpen: false,
         items: [
             {
                 title: 'Produk',
@@ -125,6 +128,12 @@ const navGroups: SidebarNavGroup[] = [
                 title: 'Stok & Opname',
                 href: adjustmentsIndex(),
                 icon: Boxes,
+                permission: 'inventory.adjust',
+            },
+            {
+                title: 'Mutasi Stok',
+                href: movementsIndex(),
+                icon: History,
                 permission: 'inventory.adjust',
             },
             {

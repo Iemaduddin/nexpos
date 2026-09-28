@@ -36,16 +36,6 @@ class BrandController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        Gate::authorize('create', Brand::class);
-
-        return Inertia::render('brands/create');
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(StoreBrandRequest $request): RedirectResponse
@@ -55,18 +45,6 @@ class BrandController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Brand berhasil ditambahkan.']);
 
         return to_route('brands.index');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Brand $brand): Response
-    {
-        Gate::authorize('update', $brand);
-
-        return Inertia::render('brands/edit', [
-            'brand' => $brand,
-        ]);
     }
 
     /**

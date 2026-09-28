@@ -1,15 +1,27 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Form, Head, Link, router, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import { Eye, FileScan, Plus } from 'lucide-react';
 import {
-    create,
     index,
     show,
+    store,
 } from '@/actions/App/Http/Controllers/DocumentController';
 import EmptyState from '@/components/empty-state';
 import Pagination from '@/components/pagination';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import InputError from '@/components/input-error';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 import { dashboard } from '@/routes';
 import type { Document, Paginated } from '@/types';
 
@@ -23,18 +35,76 @@ const statusLabel: Record<string, string> = {
 
 function IndexActions() {
     const { auth } = usePage().props;
+    const [uploading, setUploading] = useState(false);
 
     if (!auth.permissions.includes('inventory.purchase')) {
         return null;
     }
 
     return (
-        <Button asChild>
-            <Link href={create()}>
+        <>
+            <Button onClick={() => setUploading(true)}>
                 <Plus className="size-4" />
                 Unggah Faktur
-            </Link>
-        </Button>
+            </Button>
+            <Dialog open={uploading} onOpenChange={setUploading}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Unggah Faktur</DialogTitle>
+                        <DialogDescription>
+                            Unggah foto faktur supplier untuk diekstrak
+                            otomatis.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Form
+                        {...store.form()}
+                        options={{ preserveScroll: true }}
+                        onSuccess={() => setUploading(false)}
+                        className="grid gap-5"
+                    >
+                        {({ processing, errors }) => (
+                            <>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="file">
+                                        Foto / pindaian faktur
+                                    </Label>
+                                    <Input
+                                        id="file"
+                                        name="file"
+                                        type="file"
+                                        accept="image/*"
+                                        required
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        JPG, PNG, atau WebP hingga 5 MB. Hasil
+                                        jelas mempercepat ekstraksi.
+                                    </p>
+                                    <InputError message={errors.file} />
+                                </div>
+                                <div className="flex items-center justify-end gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setUploading(false)}
+                                    >
+                                        Batal
+                                    </Button>
+                                    <Button
+                                        type="submit"
+                                        disabled={processing}
+                                    >
+                                        {processing && <Spinner />}
+                                        {processing
+                                            ? 'Memproses OCR...'
+                                            : 'Unggah & Ekstrak'}
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+                    </Form>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
 

@@ -19,7 +19,10 @@ import type { SidebarNavGroup } from '@/types';
 export function NavMain({ groups }: { groups: SidebarNavGroup[] }) {
     const { currentUrl, isCurrentUrl } = useCurrentUrl();
     const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(
-        () => Object.fromEntries(groups.map((g) => [g.label, true])),
+        () =>
+            Object.fromEntries(
+                groups.map((g) => [g.label, g.defaultOpen ?? true]),
+            ),
     );
 
     // isCurrentUrl dibuat baru setiap render oleh hook, jadi simpan di ref

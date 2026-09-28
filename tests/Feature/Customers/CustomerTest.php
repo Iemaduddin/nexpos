@@ -114,6 +114,24 @@ test('quick store returns the created customer as JSON without redirect', functi
     expect($response->json('customer.id'))->toBe($customer->id);
 });
 
+test('show needs view permission and includes recent sales', function () {
+    $customer = Customer::create(['code' => 'C-1', 'name' => 'Budi']);
+
+    $this->get(route('customers.show', $customer))->assertRedirect(route('login'));
+
+    $this->actingAs(User::factory()->create());
+    $this->get(route('customers.show', $customer))->assertForbidden();
+
+    $this->actingAs(customerUser(['customers.view']));
+    $this->get(route('customers.show', $customer))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('customers/show')
+            ->where('customer.name', 'Budi')
+            ->has('sales', 0)
+        );
+});
+
 test('quick store validates input and enforces permission', function () {
     $this->actingAs(customerUser(['customers.view', 'customers.manage']));
 

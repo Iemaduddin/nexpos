@@ -41,16 +41,6 @@ class CustomerController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        Gate::authorize('create', Customer::class);
-
-        return Inertia::render('customers/create');
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(StoreCustomerRequest $request): RedirectResponse
@@ -97,14 +87,20 @@ class CustomerController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Display the customer with recent sales history.
      */
-    public function edit(Customer $customer): Response
+    public function show(Customer $customer): Response
     {
-        Gate::authorize('update', $customer);
+        Gate::authorize('view', $customer);
 
-        return Inertia::render('customers/edit', [
+        $sales = $customer->sales()
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get(['id', 'number', 'grand_total', 'paid_total', 'change_amount', 'status', 'completed_at']);
+
+        return Inertia::render('customers/show', [
             'customer' => $customer,
+            'sales' => $sales,
         ]);
     }
 

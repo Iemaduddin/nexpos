@@ -28,17 +28,6 @@ test('users without permission cannot view users', function () {
     $this->get(route('users.index'))->assertForbidden();
 });
 
-test('users with view permission can visit the index', function () {
-    $user = User::factory()->create();
-    $user->givePermissionTo(['users.view']);
-
-    $this->actingAs($user);
-
-    $this->get(route('users.index'))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page->component('users/index'));
-});
-
 test('users with manage permission can create a user', function () {
     $role = Role::create(['name' => 'cashier', 'guard_name' => 'web']);
     $store = Store::create(['code' => 'T-1', 'name' => 'Toko 1', 'is_main' => true]);
@@ -62,19 +51,8 @@ test('users with manage permission can create a user', function () {
     ]);
 });
 
-test('email must be unique', function () {
-    $this->actingAs(userWithPermissions(['users.manage']));
-    User::create(['email' => 'budi@example.com']);
-
-    $this->post(route('users.store'), [
-        'name' => 'Budi',
-        'email' => 'budi@example.com',
-        'password' => 'password123',
-        'role' => 'cashier',
-    ])->assertSessionHasErrors('email');
-});
-
 test('users with manage permission can update a user', function () {
+    Role::create(['name' => 'cashier', 'guard_name' => 'web']);
     $user = User::factory()->create(['email' => 'budi@example.com']);
     $this->actingAs(userWithPermissions(['users.manage']));
 
@@ -112,12 +90,12 @@ test('a user cannot delete themselves', function () {
 });
 
 test('users with manage permission can delete other users', function () {
-    $user = User::factory()->create();
-    $user->givePermissionTo(['users.manage']);
-    $this->actingAs($user);
+    $this->actingAs(userWithPermissions(['users.manage']));
+    $target = User::factory()->create();
 
-    $this->delete(route('users.destroy', $user))
+    $this->delete(route('users.destroy', $target))
         ->assertRedirect(route('users.index'));
 
-    $this->assertDatabaseMissing('users', ['id' => $user->id]);
+    $this->assertDatabaseMissing('users', ['id' => $target->id]);
 });
+

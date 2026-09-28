@@ -2,7 +2,6 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { ClipboardList, Eye, Plus, Search } from 'lucide-react';
 import {
-    create,
     index,
     show,
 } from '@/actions/App/Http/Controllers/StockAdjustmentController';
@@ -14,7 +13,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { adjustmentStatusLabel, adjustmentTypeLabel } from '@/lib/adjustment';
 import { dashboard } from '@/routes';
-import type { Paginated, StockAdjustment } from '@/types';
+import type {
+    Paginated,
+    ProductOption,
+    StockAdjustment,
+    StoreOption,
+} from '@/types';
+import { AdjustmentCreateDialog } from './adjustment-form';
 
 type Props = {
     adjustments: Paginated<StockAdjustment>;
@@ -27,20 +32,39 @@ const statusOptions = [
     { value: 'approved', label: 'Disetujui' },
 ];
 
+function useFormOptions(): {
+    stores: StoreOption[];
+    products: ProductOption[];
+} {
+    const { stores, products } = usePage().props as unknown as {
+        stores: StoreOption[];
+        products: ProductOption[];
+    };
+    return { stores: stores ?? [], products: products ?? [] };
+}
+
 function IndexActions() {
     const { auth } = usePage().props;
+    const [creating, setCreating] = useState(false);
+    const { stores, products } = useFormOptions();
 
     if (!auth.permissions.includes('inventory.adjust')) {
         return null;
     }
 
     return (
-        <Button asChild>
-            <Link href={create()}>
+        <>
+            <Button onClick={() => setCreating(true)}>
                 <Plus className="size-4" />
                 Buat Penyesuaian
-            </Link>
-        </Button>
+            </Button>
+            <AdjustmentCreateDialog
+                open={creating}
+                onOpenChange={setCreating}
+                stores={stores}
+                products={products}
+            />
+        </>
     );
 }
 

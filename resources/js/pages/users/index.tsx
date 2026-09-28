@@ -1,10 +1,8 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import {
-    create,
     destroy,
-    edit,
     index,
 } from '@/actions/App/Http/Controllers/UserController';
 import EmptyState from '@/components/empty-state';
@@ -24,16 +22,58 @@ import {
 import { Input } from '@/components/ui/input';
 import { dashboard } from '@/routes';
 import { index as rolesIndex } from '@/routes/roles';
-import type { ManagedUser, Paginated } from '@/types';
+import type {
+    ManagedUser,
+    Paginated,
+    RoleOption,
+    StoreOption,
+} from '@/types';
+import { UserCreateDialog, UserEditDialog } from './user-form';
 
 type Props = {
     users: Paginated<ManagedUser>;
     filters: { search: string };
+    roles: RoleOption[];
+    stores: StoreOption[];
 };
+
+function useFormOptions(): { roles: RoleOption[]; stores: StoreOption[] } {
+    const { roles, stores } = usePage().props as unknown as {
+        roles: RoleOption[];
+        stores: StoreOption[];
+    };
+    return { roles: roles ?? [], stores: stores ?? [] };
+}
+
+function UserIndexActions() {
+    const [creating, setCreating] = useState(false);
+    const { roles, stores } = useFormOptions();
+
+    return (
+        <>
+            <Button variant="outline" asChild>
+                <Link href={rolesIndex()}>Peran & Izin</Link>
+            </Button>
+            <Button onClick={() => setCreating(true)}>
+                <Plus className="size-4" />
+                Tambah Pengguna
+            </Button>
+            <UserCreateDialog
+                open={creating}
+                onOpenChange={setCreating}
+                roles={roles}
+                stores={stores}
+            />
+        </>
+    );
+}
 
 export default function UserIndex({ users, filters }: Props) {
     const [query, setQuery] = useState(filters.search ?? '');
+    const [creating, setCreating] = useState(false);
+    const [editing, setEditing] = useState<ManagedUser | null>(null);
     const [deleting, setDeleting] = useState<ManagedUser | null>(null);
+    const { roles, stores } = useFormOptions();
 
     useEffect(() => {
         if (query === (filters.search ?? '')) {
@@ -161,13 +201,13 @@ export default function UserIndex({ users, filters }: Props) {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    asChild
                                                     title="Ubah"
                                                     aria-label={`Ubah ${user.name}`}
+                                                    onClick={() =>
+                                                        setEditing(user)
+                                                    }
                                                 >
-                                                    <Link href={edit(user.id)}>
-                                                        <Pencil className="size-4" />
-                                                    </Link>
+                                                    <Pencil className="size-4" />
                                                 </Button>
                                                 <Button
                                                     variant="ghost"
@@ -203,11 +243,11 @@ export default function UserIndex({ users, filters }: Props) {
                             }
                             action={
                                 !filters.search ? (
-                                    <Button asChild>
-                                        <Link href={create()}>
-                                            <Plus className="size-4" />
-                                            Tambah Pengguna
-                                        </Link>
+                                    <Button
+                                        onClick={() => setCreating(true)}
+                                    >
+                                        <Plus className="size-4" />
+                                        Tambah Pengguna
                                     </Button>
                                 ) : undefined
                             }
@@ -226,6 +266,27 @@ export default function UserIndex({ users, filters }: Props) {
                     />
                 </div>
             </Card>
+
+            <UserCreateDialog
+                open={creating}
+                onOpenChange={setCreating}
+                roles={roles}
+                stores={stores}
+            />
+
+            {editing && (
+                <UserEditDialog
+                    user={editing}
+                    open={editing !== null}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setEditing(null);
+                        }
+                    }}
+                    roles={roles}
+                    stores={stores}
+                />
+            )}
 
             <Dialog
                 open={deleting !== null}
@@ -265,19 +326,7 @@ export default function UserIndex({ users, filters }: Props) {
 UserIndex.layout = {
     title: 'Pengguna',
     description: 'Kelola akun, peran, dan penempatan gerai.',
-    actions: (
-        <>
-            <Button variant="outline" asChild>
-                <Link href={rolesIndex()}>Peran & Izin</Link>
-            </Button>
-            <Button asChild>
-                <Link href={create()}>
-                    <Plus className="size-4" />
-                    Tambah Pengguna
-                </Link>
-            </Button>
-        </>
-    ),
+    actions: <UserIndexActions />,
     breadcrumbs: [
         {
             title: 'Dashboard',

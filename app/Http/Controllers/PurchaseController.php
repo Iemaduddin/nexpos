@@ -48,17 +48,8 @@ class PurchaseController extends Controller
         return Inertia::render('purchases/index', [
             'purchases' => $purchases,
             'filters' => ['search' => $search, 'status' => $status ?: null],
+            ...$this->formOptions(),
         ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        Gate::authorize('create', Purchase::class);
-
-        return Inertia::render('purchases/create', $this->formOptions());
     }
 
     /**
@@ -140,26 +131,6 @@ class PurchaseController extends Controller
         ]);
 
         return Inertia::render('purchases/show', [
-            'purchase' => $purchase,
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Purchase $purchase): Response|RedirectResponse
-    {
-        Gate::authorize('update', $purchase);
-
-        if ($purchase->status !== 'draft') {
-            Inertia::flash('toast', ['type' => 'error', 'message' => 'Hanya draf yang dapat diubah.']);
-
-            return to_route('purchases.show', $purchase);
-        }
-
-        $purchase->load('items');
-
-        return Inertia::render('purchases/edit', [
             'purchase' => $purchase,
             ...$this->formOptions(),
         ]);

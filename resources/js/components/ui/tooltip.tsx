@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 type TooltipContextValue = {
     open: boolean;
     setOpen: (open: boolean) => void;
+    tooltipId: string;
 };
 
 const TooltipContext = React.createContext<TooltipContextValue | null>(null);
@@ -48,7 +49,14 @@ function Tooltip({
         [controlled, onOpenChange],
     );
 
-    const value = React.useMemo(() => ({ open, setOpen }), [open, setOpen]);
+    // useId (bukan :hover query) agar aman untuk SSR dan multi-tooltip.
+    const reactId = React.useId();
+    const tooltipId = `nx-tooltip-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`;
+
+    const value = React.useMemo(
+        () => ({ open, setOpen, tooltipId }),
+        [open, setOpen, tooltipId],
+    );
 
     return (
         <TooltipContext.Provider value={value}>
@@ -79,6 +87,7 @@ function TooltipTrigger({
 
     const triggerProps = {
         'data-slot': 'tooltip-trigger',
+        'data-tooltip-trigger': ctx?.tooltipId ?? '',
         onMouseEnter: () => ctx?.setOpen(true),
         onFocus: () => ctx?.setOpen(true),
     };
@@ -126,44 +135,51 @@ function TooltipContent({
     const [pos, setPos] = React.useState<{ top: number; left: number } | null>(
         null,
     );
-    const triggerRef = React.useRef<HTMLElement | null>(null);
 
     React.useEffect(() => {
         if (!ctx?.open || hidden || typeof document === 'undefined') {
             return;
         }
-        const id = requestAnimationFrame(() => {
+        const update = () => {
             const trigger = document.querySelector(
-                '[data-slot="tooltip-trigger"]:hover, [data-slot="tooltip-trigger"]:focus-within',
+                `[data-tooltip-trigger="${ctx.tooltipId}"]`,
             ) as HTMLElement | null;
-            if (trigger) {
-                triggerRef.current = trigger;
-                const rect = trigger.getBoundingClientRect();
-                let top = rect.top - 8;
-                let left = rect.left + rect.width / 2;
-                if (side === 'right') {
-                    top = rect.top + rect.height / 2;
-                    left = rect.right + sideOffset;
-                } else if (side === 'left') {
-                    top = rect.top + rect.height / 2;
-                    left = rect.left - sideOffset;
-                } else if (side === 'bottom') {
-                    top = rect.bottom + sideOffset;
-                    left = rect.left + rect.width / 2;
-                } else {
-                    top = rect.top - sideOffset;
-                    left = rect.left + rect.width / 2;
-                }
-                if (align === 'start') {
-                    left = rect.left;
-                } else if (align === 'end') {
-                    left = rect.right;
-                }
-                setPos({ top, left });
+            if (!trigger) {
+                return;
             }
-        });
-        return () => cancelAnimationFrame(id);
-    }, [ctx?.open, hidden, side, sideOffset, align]);
+            const rect = trigger.getBoundingClientRect();
+            const margin = 8;
+            const vw = window.innerWidth;
+            let top = rect.top - sideOffset;
+            let left = rect.left + rect.width / 2;
+            if (side === 'right') {
+                top = rect.top + rect.height / 2;
+                left = rect.right + sideOffset;
+            } else if (side === 'left') {
+                top = rect.top + rect.height / 2;
+                left = rect.left - sideOffset;
+            } else if (side === 'bottom') {
+                top = rect.bottom + sideOffset;
+                left = rect.left + rect.width / 2;
+            }
+            if (align === 'start') {
+                left = rect.left;
+            } else if (align === 'end') {
+                left = rect.right;
+            }
+            // Jepit dalam viewport agar tidak terpotong.
+            top = Math.min(Math.max(margin, top), window.innerHeight - margin);
+            left = Math.min(Math.max(margin, left), vw - margin);
+            setPos({ top, left });
+        };
+        update();
+        window.addEventListener('resize', update);
+        window.addEventListener('scroll', update, true);
+        return () => {
+            window.removeEventListener('resize', update);
+            window.removeEventListener('scroll', update, true);
+        };
+    }, [ctx, hidden, side, sideOffset, align]);
 
     if (!ctx?.open || hidden || typeof document === 'undefined') {
         return null;

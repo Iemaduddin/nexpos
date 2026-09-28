@@ -33,17 +33,6 @@ class CategoryController extends Controller
         return Inertia::render('categories/index', [
             'categories' => $categories,
             'filters' => ['search' => $search],
-        ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        Gate::authorize('create', Category::class);
-
-        return Inertia::render('categories/create', [
             'parents' => Category::query()->orderBy('name')->get(['id', 'name']),
         ]);
     }
@@ -58,22 +47,6 @@ class CategoryController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Kategori berhasil ditambahkan.']);
 
         return to_route('categories.index');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Category $category): Response
-    {
-        Gate::authorize('update', $category);
-
-        return Inertia::render('categories/edit', [
-            'category' => $category,
-            'parents' => Category::query()
-                ->where('id', '!=', $category->id)
-                ->orderBy('name')
-                ->get(['id', 'name']),
-        ]);
     }
 
     /**

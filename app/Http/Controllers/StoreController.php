@@ -40,16 +40,6 @@ class StoreController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        Gate::authorize('create', Store::class);
-
-        return Inertia::render('stores/create');
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(CreateStoreRequest $request): RedirectResponse
@@ -67,18 +57,6 @@ class StoreController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Gerai berhasil ditambahkan.']);
 
         return to_route('stores.index');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Store $store): Response
-    {
-        Gate::authorize('update', $store);
-
-        return Inertia::render('stores/edit', [
-            'store' => $store,
-        ]);
     }
 
     /**

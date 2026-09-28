@@ -37,17 +37,8 @@ class UserController extends Controller
         return Inertia::render('users/index', [
             'users' => $users,
             'filters' => ['search' => $search],
+            ...$this->formOptions(),
         ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        Gate::authorize('create', User::class);
-
-        return Inertia::render('users/create', $this->formOptions());
     }
 
     /**
@@ -70,19 +61,6 @@ class UserController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Pengguna berhasil ditambahkan.']);
 
         return to_route('users.index');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(User $user): Response
-    {
-        Gate::authorize('update', $user);
-
-        return Inertia::render('users/edit', [
-            'user' => [...$user->only(['id', 'name', 'email', 'store_id', 'is_active']), 'role' => $user->roles->first()?->name],
-            ...$this->formOptions(),
-        ]);
     }
 
     /**

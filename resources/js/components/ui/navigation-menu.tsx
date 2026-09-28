@@ -151,7 +151,7 @@ function NavigationMenuViewport({
             <div
                 data-slot="navigation-menu-viewport"
                 className={cn(
-                    'origin-top-center bg-popover text-popover-foreground relative mt-1.5 h-[var(--radix-navigation-menu-viewport-height)] w-full overflow-hidden rounded-md border shadow md:w-[var(--radix-navigation-menu-viewport-width)]',
+                    'origin-top-center bg-popover text-popover-foreground relative mt-1.5 w-full overflow-hidden rounded-md border shadow',
                     className,
                 )}
                 {...props}

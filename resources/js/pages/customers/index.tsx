@@ -1,11 +1,10 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
-import { Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
+import { Eye, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import {
-    create,
     destroy,
-    edit,
     index,
+    show,
 } from '@/actions/App/Http/Controllers/CustomerController';
 import EmptyState from '@/components/empty-state';
 import Pagination from '@/components/pagination';
@@ -25,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { formatIDR } from '@/lib/format';
 import { dashboard } from '@/routes';
 import type { Customer, Paginated } from '@/types';
+import { CustomerCreateDialog, CustomerEditDialog } from './customer-form';
 
 type Props = {
     customers: Paginated<Customer>;
@@ -33,18 +33,23 @@ type Props = {
 
 function IndexActions() {
     const { auth } = usePage().props;
+    const [creating, setCreating] = useState(false);
 
     if (!auth.permissions.includes('customers.manage')) {
         return null;
     }
 
     return (
-        <Button asChild>
-            <Link href={create()}>
+        <>
+            <Button onClick={() => setCreating(true)}>
                 <Plus className="size-4" />
                 Tambah Pelanggan
-            </Link>
-        </Button>
+            </Button>
+            <CustomerCreateDialog
+                open={creating}
+                onOpenChange={setCreating}
+            />
+        </>
     );
 }
 
@@ -53,6 +58,8 @@ export default function CustomerIndex({ customers, filters }: Props) {
     const canManage = auth.permissions.includes('customers.manage');
 
     const [query, setQuery] = useState(filters.search ?? '');
+    const [creating, setCreating] = useState(false);
+    const [editing, setEditing] = useState<Customer | null>(null);
     const [deleting, setDeleting] = useState<Customer | null>(null);
 
     useEffect(() => {
@@ -136,11 +143,9 @@ export default function CustomerIndex({ customers, filters }: Props) {
                                     <th className="px-4 py-2.5 font-medium">
                                         Status
                                     </th>
-                                    {canManage && (
-                                        <th className="px-4 py-2.5 text-right font-medium">
-                                            Aksi
-                                        </th>
-                                    )}
+                                    <th className="px-4 py-2.5 text-right font-medium">
+                                        Aksi
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -177,24 +182,37 @@ export default function CustomerIndex({ customers, filters }: Props) {
                                                     : 'Nonaktif'}
                                             </Badge>
                                         </td>
-                                        {canManage && (
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center justify-end gap-1">
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    asChild
+                                                    title="Detail"
+                                                    aria-label={`Detail ${customer.name}`}
+                                                >
+                                                    <Link
+                                                        href={show(
+                                                            customer.id,
+                                                        )}
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </Link>
+                                                </Button>
+                                                {canManage && (
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        asChild
                                                         title="Ubah"
                                                         aria-label={`Ubah ${customer.name}`}
+                                                        onClick={() =>
+                                                            setEditing(customer)
+                                                        }
                                                     >
-                                                        <Link
-                                                            href={edit(
-                                                                customer.id,
-                                                            )}
-                                                        >
-                                                            <Pencil className="size-4" />
-                                                        </Link>
+                                                        <Pencil className="size-4" />
                                                     </Button>
+                                                )}
+                                                {canManage && (
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
@@ -208,9 +226,9 @@ export default function CustomerIndex({ customers, filters }: Props) {
                                                     >
                                                         <Trash2 className="size-4 text-destructive" />
                                                     </Button>
+                                                )}
                                                 </div>
                                             </td>
-                                        )}
                                     </tr>
                                 ))}
                             </tbody>
@@ -232,11 +250,11 @@ export default function CustomerIndex({ customers, filters }: Props) {
                             }
                             action={
                                 !filters.search && canManage ? (
-                                    <Button asChild>
-                                        <Link href={create()}>
-                                            <Plus className="size-4" />
-                                            Tambah Pelanggan
-                                        </Link>
+                                    <Button
+                                        onClick={() => setCreating(true)}
+                                    >
+                                        <Plus className="size-4" />
+                                        Tambah Pelanggan
                                     </Button>
                                 ) : undefined
                             }
@@ -255,6 +273,23 @@ export default function CustomerIndex({ customers, filters }: Props) {
                     />
                 </div>
             </Card>
+
+            <CustomerCreateDialog
+                open={creating}
+                onOpenChange={setCreating}
+            />
+
+            {editing && (
+                <CustomerEditDialog
+                    customer={editing}
+                    open={editing !== null}
+                    onOpenChange={(open) => {
+                        if (!open) {
+                            setEditing(null);
+                        }
+                    }}
+                />
+            )}
 
             <Dialog
                 open={deleting !== null}
