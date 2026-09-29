@@ -57,6 +57,12 @@ class Purchase extends Model
         return $this->hasMany(PurchaseItem::class);
     }
 
+    /** @return HasMany<PurchasePayment, $this> */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(PurchasePayment::class);
+    }
+
     /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {

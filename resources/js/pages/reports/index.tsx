@@ -1,26 +1,38 @@
-import { Head, Link } from "@inertiajs/react";
-import { ResponsiveBar } from "@nivo/bar";
-import { ResponsiveLine } from "@nivo/line";
-import { CalendarRange, Download, TrendingDown, TrendingUp } from "lucide-react";
+import { Head, Link } from '@inertiajs/react';
+import { ResponsiveBar } from '@nivo/bar';
+import { ResponsiveLine } from '@nivo/line';
 import {
+    CalendarRange,
+    Download,
+    TrendingDown,
+    TrendingUp,
+    Wallet,
+} from 'lucide-react';
+import {
+    exportCashFlow,
+    exportCogs,
     exportCsv,
     index,
-} from "@/actions/App/Http/Controllers/ReportController";
-import EmptyState from "@/components/empty-state";
-import StatCard from "@/components/stat-card";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatIDR } from "@/lib/format";
-import { confidenceLabel, segmentLabel } from "@/lib/ml";
-import { dashboard } from "@/routes";
+} from '@/actions/App/Http/Controllers/ReportController';
+import EmptyState from '@/components/empty-state';
+import StatCard from '@/components/stat-card';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatIDR } from '@/lib/format';
+import { confidenceLabel, segmentLabel } from '@/lib/ml';
+import { dashboard } from '@/routes';
 import type {
     AffinityPair,
+    CashFlow,
     CategoryRevenue,
+    CogsDailyRow,
+    CogsProductRow,
+    CogsSummary,
     DailyRow,
     ForecastDigest,
     Overview,
     TopProduct,
-} from "@/types";
+} from '@/types';
 
 export default function ReportIndex({
     period,
@@ -34,6 +46,10 @@ export default function ReportIndex({
     affinities,
     segments,
     categoryRevenue,
+    cogs,
+    cogsByProduct,
+    cogsDaily,
+    cashFlow,
 }: {
     period: string;
     periods: Record<string, string>;
@@ -46,33 +62,71 @@ export default function ReportIndex({
     affinities: AffinityPair[];
     segments: Record<string, number>;
     categoryRevenue: CategoryRevenue[];
+    cogs: CogsSummary;
+    cogsByProduct: CogsProductRow[];
+    cogsDaily: CogsDailyRow[];
+    cashFlow: CashFlow;
 }) {
     const stats = [
         {
-            title: "Pendapatan Kotor",
+            title: 'Pendapatan Kotor',
             value: formatIDR(overview.revenue),
             sub: `${overview.transactions} transaksi`,
             icon: TrendingUp,
         },
         {
-            title: "Refund",
+            title: 'Refund',
             value: formatIDR(overview.refunds),
-            sub: "pengembalian ke pelanggan",
+            sub: 'pengembalian ke pelanggan',
             icon: TrendingDown,
         },
         {
-            title: "Pendapatan Bersih",
+            title: 'Pendapatan Bersih',
             value: formatIDR(overview.net_revenue),
             sub: `rata-rata ${formatIDR(overview.avg_transaction)}`,
             icon: TrendingUp,
         },
         {
-            title: "Laba Kotor",
+            title: 'Laba Kotor',
             value: formatIDR(overview.profit),
             sub: `${overview.items_sold} item terjual`,
             icon: TrendingUp,
         },
     ];
+
+    const cogsStats = [
+        {
+            title: 'HPP Bersih',
+            value: formatIDR(cogs.net_cogs),
+            sub: `kotor ${formatIDR(cogs.gross_cogs)}`,
+            icon: TrendingDown,
+        },
+        {
+            title: 'Marjin Kotor',
+            value: formatIDR(cogs.gross_margin),
+            sub:
+                cogs.margin_pct === null
+                    ? 'belum ada pendapatan bersih'
+                    : `${cogs.margin_pct}% dari pendapatan bersih`,
+            icon: TrendingUp,
+        },
+        {
+            title: 'HPP Diretur',
+            value: formatIDR(cogs.returned_cogs),
+            sub: 'nilai pokok barang retur',
+            icon: TrendingDown,
+        },
+        {
+            title: 'Saldo Kas Akhir',
+            value: formatIDR(cashFlow.closing_balance),
+            sub: `arus bersih ${formatIDR(cashFlow.net_flow)}`,
+            icon: Wallet,
+        },
+    ];
+
+    const cogsByDate = Object.fromEntries(
+        cogsDaily.map((row) => [row.date, row]),
+    );
 
     return (
         <>
@@ -95,7 +149,7 @@ export default function ReportIndex({
                         <Button
                             key={value}
                             size="sm"
-                            variant={period === value ? "default" : "outline"}
+                            variant={period === value ? 'default' : 'outline'}
                             asChild
                         >
                             <Link
@@ -106,12 +160,27 @@ export default function ReportIndex({
                         </Button>
                     ))}
                     <Button size="sm" variant="outline" asChild>
+                        <a href={exportCsv.url({ query: { period } })} download>
+                            <Download className="size-4" />
+                            Harian CSV
+                        </a>
+                    </Button>
+                    <Button size="sm" variant="outline" asChild>
                         <a
-                            href={exportCsv.url({ query: { period } })}
+                            href={exportCogs.url({ query: { period } })}
                             download
                         >
                             <Download className="size-4" />
-                            Export CSV
+                            HPP CSV
+                        </a>
+                    </Button>
+                    <Button size="sm" variant="outline" asChild>
+                        <a
+                            href={exportCashFlow.url({ query: { period } })}
+                            download
+                        >
+                            <Download className="size-4" />
+                            Kas CSV
                         </a>
                     </Button>
                 </div>
@@ -138,21 +207,21 @@ export default function ReportIndex({
                                 <ResponsiveLine
                                     data={[
                                         {
-                                            id: "Pendapatan",
+                                            id: 'Pendapatan',
                                             data: daily.map((row) => ({
                                                 x: row.label,
                                                 y: row.revenue,
                                             })),
                                         },
                                         {
-                                            id: "Laba",
+                                            id: 'Laba',
                                             data: daily.map((row) => ({
                                                 x: row.label,
                                                 y: row.profit,
                                             })),
                                         },
                                         {
-                                            id: "Refund",
+                                            id: 'Refund',
                                             data: daily.map((row) => ({
                                                 x: row.label,
                                                 y: row.refunds,
@@ -165,25 +234,25 @@ export default function ReportIndex({
                                         bottom: 42,
                                         left: 72,
                                     }}
-                                    xScale={{ type: "point" }}
+                                    xScale={{ type: 'point' }}
                                     yScale={{
-                                        type: "linear",
-                                        min: "auto",
-                                        max: "auto",
+                                        type: 'linear',
+                                        min: 'auto',
+                                        max: 'auto',
                                         stacked: false,
                                         reverse: false,
                                     }}
                                     curve="monotoneX"
                                     colors={[
-                                        "var(--chart-1)",
-                                        "var(--chart-2)",
-                                        "var(--destructive)",
+                                        'var(--chart-1)',
+                                        'var(--chart-2)',
+                                        'var(--destructive)',
                                     ]}
                                     lineWidth={2}
                                     pointSize={7}
                                     pointColor="var(--card)"
                                     pointBorderWidth={2}
-                                    pointBorderColor={{ from: "serieColor" }}
+                                    pointBorderColor={{ from: 'serieColor' }}
                                     enableArea
                                     areaOpacity={0.08}
                                     enableGridX={false}
@@ -229,8 +298,8 @@ export default function ReportIndex({
                                     )}
                                     legends={[
                                         {
-                                            anchor: "bottom",
-                                            direction: "row",
+                                            anchor: 'bottom',
+                                            direction: 'row',
                                             translateY: 40,
                                             itemsSpacing: 18,
                                             itemWidth: 90,
@@ -242,20 +311,20 @@ export default function ReportIndex({
                                         axis: {
                                             ticks: {
                                                 text: {
-                                                    fill: "var(--muted-foreground)",
+                                                    fill: 'var(--muted-foreground)',
                                                     fontSize: 11,
                                                 },
                                             },
                                         },
                                         grid: {
                                             line: {
-                                                stroke: "var(--border)",
-                                                strokeDasharray: "3 3",
+                                                stroke: 'var(--border)',
+                                                strokeDasharray: '3 3',
                                             },
                                         },
                                         legends: {
                                             text: {
-                                                fill: "var(--muted-foreground)",
+                                                fill: 'var(--muted-foreground)',
                                                 fontSize: 11,
                                             },
                                         },
@@ -269,6 +338,195 @@ export default function ReportIndex({
                                 icon={TrendingUp}
                                 title="Belum ada tren"
                                 description="Chart akan muncul setelah ada transaksi."
+                            />
+                        </CardContent>
+                    )}
+                </Card>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {cogsStats.map((stat) => (
+                    <div key={stat.title} className="min-w-0">
+                        <StatCard {...stat} />
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+                <Card className="overflow-hidden py-0">
+                    <CardHeader className="px-5 py-5">
+                        <CardTitle className="text-base font-medium">
+                            HPP per Produk · {rangeLabel}
+                        </CardTitle>
+                    </CardHeader>
+                    {cogsByProduct.length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-y text-left text-muted-foreground">
+                                        <th className="px-4 py-2.5 font-medium">
+                                            Produk
+                                        </th>
+                                        <th className="px-4 py-2.5 text-right font-medium">
+                                            HPP
+                                        </th>
+                                        <th className="px-4 py-2.5 text-right font-medium">
+                                            Marjin
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {cogsByProduct.map((row) => (
+                                        <tr
+                                            key={row.id}
+                                            className="border-b last:border-0"
+                                        >
+                                            <td className="px-4 py-2.5">
+                                                <p className="font-medium">
+                                                    {row.name}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {row.qty} terjual · refund{' '}
+                                                    {formatIDR(row.refunds)}
+                                                </p>
+                                            </td>
+                                            <td className="px-4 py-2.5 text-right tabular-nums">
+                                                {formatIDR(row.cogs)}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-right font-medium tabular-nums">
+                                                {formatIDR(row.margin)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <CardContent className="pt-0">
+                            <EmptyState
+                                icon={TrendingUp}
+                                title="Belum ada HPP"
+                                description={`Tidak ada penjualan pada periode ${rangeLabel.toLowerCase()}.`}
+                            />
+                        </CardContent>
+                    )}
+                </Card>
+
+                <Card className="overflow-hidden py-0">
+                    <CardHeader className="px-5 py-5">
+                        <CardTitle className="text-base font-medium">
+                            Arus Kas · {rangeLabel}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 p-5 pt-0">
+                        <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">
+                                Saldo awal
+                            </span>
+                            <span className="font-medium tabular-nums">
+                                {formatIDR(cashFlow.opening_balance)}
+                            </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">
+                                Kas masuk penjualan
+                            </span>
+                            <span className="font-medium text-emerald-600 tabular-nums">
+                                +{formatIDR(cashFlow.cash_in)}
+                            </span>
+                        </div>
+                        {cashFlow.cash_in_by_method.map((row) => (
+                            <div
+                                key={row.method}
+                                className="flex justify-between pl-4 text-xs text-muted-foreground"
+                            >
+                                <span>{row.method}</span>
+                                <span className="tabular-nums">
+                                    {formatIDR(row.amount)}
+                                </span>
+                            </div>
+                        ))}
+                        <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">
+                                Bayar pemasok
+                            </span>
+                            <span className="font-medium text-destructive tabular-nums">
+                                -{formatIDR(cashFlow.cash_out_purchases)}
+                            </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">
+                                Refund pelanggan
+                            </span>
+                            <span className="font-medium text-destructive tabular-nums">
+                                -{formatIDR(cashFlow.cash_out_refunds)}
+                            </span>
+                        </div>
+                        <div className="flex justify-between border-t pt-3 text-sm">
+                            <span className="font-medium">Saldo akhir</span>
+                            <span className="font-semibold tabular-nums">
+                                {formatIDR(cashFlow.closing_balance)}
+                            </span>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <div>
+                <Card className="min-w-0 overflow-hidden py-0">
+                    <CardHeader className="px-5 py-5">
+                        <CardTitle className="text-base font-medium">
+                            Arus Kas Harian · {rangeLabel}
+                        </CardTitle>
+                    </CardHeader>
+                    {cashFlow.daily.some((row) => row.in > 0 || row.out > 0) ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-y text-left text-muted-foreground">
+                                        <th className="px-4 py-2.5 font-medium">
+                                            Tanggal
+                                        </th>
+                                        <th className="px-4 py-2.5 text-right font-medium">
+                                            Masuk
+                                        </th>
+                                        <th className="px-4 py-2.5 text-right font-medium">
+                                            Keluar
+                                        </th>
+                                        <th className="px-4 py-2.5 text-right font-medium">
+                                            Bersih
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {cashFlow.daily.map((row) => (
+                                        <tr
+                                            key={row.date}
+                                            className="border-b last:border-0"
+                                        >
+                                            <td className="px-4 py-2.5 font-medium">
+                                                {row.label}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-right text-emerald-600 tabular-nums">
+                                                {formatIDR(row.in)}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-right text-destructive tabular-nums">
+                                                {formatIDR(row.out)}
+                                            </td>
+                                            <td className="px-4 py-2.5 text-right font-medium tabular-nums">
+                                                {formatIDR(row.net)}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <CardContent>
+                            <EmptyState
+                                icon={Wallet}
+                                title="Belum ada arus kas"
+                                description="Belum ada pembayaran atau refund pada periode ini."
                             />
                         </CardContent>
                     )}
@@ -290,7 +548,7 @@ export default function ReportIndex({
                                         produk: product.name,
                                         unit: product.qty,
                                     }))}
-                                    keys={["unit"]}
+                                    keys={['unit']}
                                     indexBy="produk"
                                     margin={{
                                         top: 8,
@@ -299,9 +557,9 @@ export default function ReportIndex({
                                         left: 12,
                                     }}
                                     padding={0.35}
-                                    valueScale={{ type: "linear" }}
-                                    indexScale={{ type: "band", round: true }}
-                                    colors={["var(--chart-3)"]}
+                                    valueScale={{ type: 'linear' }}
+                                    indexScale={{ type: 'band', round: true }}
+                                    colors={['var(--chart-3)']}
                                     borderRadius={4}
                                     enableLabel={false}
                                     enableGridX={false}
@@ -317,15 +575,15 @@ export default function ReportIndex({
                                         axis: {
                                             ticks: {
                                                 text: {
-                                                    fill: "var(--muted-foreground)",
+                                                    fill: 'var(--muted-foreground)',
                                                     fontSize: 10,
                                                 },
                                             },
                                         },
                                         grid: {
                                             line: {
-                                                stroke: "var(--border)",
-                                                strokeDasharray: "3 3",
+                                                stroke: 'var(--border)',
+                                                strokeDasharray: '3 3',
                                             },
                                         },
                                     }}
@@ -353,7 +611,7 @@ export default function ReportIndex({
                             <div className="h-64 w-full">
                                 <ResponsiveBar
                                     data={categoryRevenue}
-                                    keys={["revenue"]}
+                                    keys={['revenue']}
                                     indexBy="name"
                                     margin={{
                                         top: 8,
@@ -362,9 +620,9 @@ export default function ReportIndex({
                                         left: 72,
                                     }}
                                     padding={0.35}
-                                    valueScale={{ type: "linear" }}
-                                    indexScale={{ type: "band", round: true }}
-                                    colors={["var(--chart-4)"]}
+                                    valueScale={{ type: 'linear' }}
+                                    indexScale={{ type: 'band', round: true }}
+                                    colors={['var(--chart-4)']}
                                     borderRadius={4}
                                     enableLabel={false}
                                     enableGridX={false}
@@ -385,15 +643,15 @@ export default function ReportIndex({
                                         axis: {
                                             ticks: {
                                                 text: {
-                                                    fill: "var(--muted-foreground)",
+                                                    fill: 'var(--muted-foreground)',
                                                     fontSize: 10,
                                                 },
                                             },
                                         },
                                         grid: {
                                             line: {
-                                                stroke: "var(--border)",
-                                                strokeDasharray: "3 3",
+                                                stroke: 'var(--border)',
+                                                strokeDasharray: '3 3',
                                             },
                                         },
                                     }}
@@ -433,6 +691,9 @@ export default function ReportIndex({
                                         <th className="px-4 py-2.5 font-medium">
                                             Pendapatan
                                         </th>
+                                        <th className="px-4 py-2.5 font-medium">
+                                            HPP
+                                        </th>
                                         <th className="px-4 py-2.5 text-right font-medium">
                                             Laba
                                         </th>
@@ -452,6 +713,12 @@ export default function ReportIndex({
                                             </td>
                                             <td className="px-4 py-2.5 tabular-nums">
                                                 {formatIDR(row.revenue)}
+                                            </td>
+                                            <td className="px-4 py-2.5 tabular-nums">
+                                                {formatIDR(
+                                                    cogsByDate[row.date]
+                                                        ?.cogs ?? 0,
+                                                )}
                                             </td>
                                             <td className="px-4 py-2.5 text-right tabular-nums">
                                                 {formatIDR(row.profit)}
@@ -596,7 +863,7 @@ export default function ReportIndex({
                                                     {forecast.product}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">
-                                                    Keyakinan{" "}
+                                                    Keyakinan{' '}
                                                     {confidenceLabel[
                                                         forecast.confidence
                                                     ] ?? forecast.confidence}
@@ -671,15 +938,15 @@ export default function ReportIndex({
 }
 
 ReportIndex.layout = {
-    title: "Laporan Penjualan",
-    description: "Kinerja bisnis per periode dengan angka yang pasti.",
+    title: 'Laporan Penjualan',
+    description: 'Kinerja bisnis per periode dengan angka yang pasti.',
     breadcrumbs: [
         {
-            title: "Dashboard",
+            title: 'Dashboard',
             href: dashboard(),
         },
         {
-            title: "Laporan",
+            title: 'Laporan',
         },
     ],
 };

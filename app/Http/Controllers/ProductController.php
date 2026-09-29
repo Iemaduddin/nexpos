@@ -58,7 +58,8 @@ class ProductController extends Controller
     public function store(StoreProductRequest $request): RedirectResponse
     {
         $validated = $request->validated();
-        $defaultThreshold = (int) (BusinessSetting::first()?->default_low_stock_threshold ?? 0);
+        $settings = BusinessSetting::first();
+        $defaultThreshold = $settings === null ? 0 : (int) $settings->default_low_stock_threshold;
 
         if (! array_key_exists('low_stock_threshold', $validated) || $validated['low_stock_threshold'] === null) {
             $validated['low_stock_threshold'] = $defaultThreshold;
@@ -94,7 +95,8 @@ class ProductController extends Controller
     public function update(UpdateProductRequest $request, Product $product): RedirectResponse
     {
         $validated = $request->validated();
-        $defaultThreshold = (int) (BusinessSetting::first()?->default_low_stock_threshold ?? 0);
+        $settings = BusinessSetting::first();
+        $defaultThreshold = $settings === null ? 0 : (int) $settings->default_low_stock_threshold;
         $rows = $this->variantRows($validated['variants'] ?? null, $defaultThreshold);
 
         $submittedIds = [];

@@ -32,6 +32,8 @@
 
         <link rel="icon" href="/logo.ico" sizes="any">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <link rel="manifest" href="/manifest.webmanifest">
+        <meta name="theme-color" content="#ffffff">
 
         @fonts
 

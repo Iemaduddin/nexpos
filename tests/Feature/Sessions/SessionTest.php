@@ -117,7 +117,7 @@ test('closing computes expected cash and difference', function () {
 
     // expected = 50000 + 30000 = 80000
     $this->patch(route('sessions.close', $session), ['closing_actual' => 79000])
-        ->assertRedirect(route('sessions.index'));
+        ->assertRedirect(route('sessions.show', $session));
 
     $session = $session->refresh();
     expect($session->status)->toBe('closed');
@@ -140,7 +140,7 @@ test('only the opener or a manager can close a session', function () {
     $other->givePermissionTo('users.manage');
 
     $this->patch(route('sessions.close', $session), ['closing_actual' => 50000])
-        ->assertRedirect(route('sessions.index'));
+        ->assertRedirect(route('sessions.show', $session));
     expect($session->refresh()->status)->toBe('closed');
 });
 
@@ -165,4 +165,53 @@ test('checkout without an open session is rejected', function () {
         'items' => [['product_id' => $product->id, 'qty' => 1, 'unit_price' => 30000]],
         'payments' => [['method' => 'cash', 'amount' => 30000]],
     ])->assertSessionHasErrors('session');
+});
+
+test('closing redirects to the reconciliation detail', function () {
+    $user = sessionUser(['sales.create', 'sales.view']);
+    $store = sessionStore();
+    $user->update(['store_id' => $store->id]);
+    $this->actingAs($user);
+
+    $session = openSession($store, $user, 50000);
+
+    $this->patch(route('sessions.close', $session), ['closing_actual' => 50000])
+        ->assertRedirect(route('sessions.show', $session));
+
+    expect($session->refresh()->difference)->toBe(0);
+});
+
+test('show page exposes the drawer breakdown', function () {
+    $user = sessionUser(['sales.create', 'sales.view']);
+    $store = sessionStore();
+    $user->update(['store_id' => $store->id]);
+    $this->actingAs($user);
+
+    $session = openSession($store, $user, 50000);
+
+    $suffix = str()->random(6);
+    $product = Product::create([
+        'sku' => 'SKU-'.$suffix,
+        'name' => 'Kopi '.$suffix,
+        'slug' => 'kopi-'.$suffix,
+        'category_id' => Category::create(['name' => 'Minuman '.$suffix, 'slug' => 'minuman-'.$suffix])->id,
+        'unit_id' => Unit::create(['name' => 'Pcs '.$suffix, 'symbol' => 'pcs-'.$suffix])->id,
+        'cost_price' => 20000,
+        'selling_price' => 30000,
+    ]);
+    StockLevel::create(['store_id' => $store->id, 'product_id' => $product->id, 'qty_on_hand' => 10]);
+
+    $this->post(route('pos.checkout'), [
+        'items' => [['product_id' => $product->id, 'qty' => 1, 'unit_price' => 30000]],
+        'payments' => [['method' => 'cash', 'amount' => 30000]],
+    ])->assertRedirect();
+
+    $this->get(route('sessions.show', $session))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('sessions/show')
+            ->where('breakdown.opening_balance', 50000)
+            ->where('breakdown.cash_sales', 30000)
+            ->where('breakdown.expected', 80000)
+            ->where('breakdown.sales_count', 1));
 });

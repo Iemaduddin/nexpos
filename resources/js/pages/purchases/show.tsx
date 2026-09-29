@@ -1,4 +1,4 @@
-import { Form, Head, Link, router, usePage } from '@inertiajs/react';
+import { Form, Head, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import {
@@ -29,12 +29,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { formatIDR, formatQty } from '@/lib/format';
 import { purchasePaymentLabel, purchaseStatusLabel } from '@/lib/purchase';
 import { dashboard } from '@/routes';
-import type {
-    OptionItem,
-    ProductOption,
-    Purchase,
-    StoreOption,
-} from '@/types';
+import type { OptionItem, ProductOption, Purchase, StoreOption } from '@/types';
 import { PurchaseEditDialog } from './purchase-form';
 
 function formatDate(value: string | null): string {
@@ -325,6 +320,43 @@ export default function PurchaseShow({ purchase }: { purchase: Purchase }) {
                             <span>{formatIDR(remaining)}</span>
                         </div>
                     </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">
+                            Riwayat Pembayaran
+                        </CardTitle>
+                    </CardHeader>
+                    {(purchase.payments ?? []).length > 0 ? (
+                        <CardContent className="grid gap-2 p-6 pt-0 text-sm">
+                            {(purchase.payments ?? []).map((payment) => (
+                                <div
+                                    key={payment.id}
+                                    className="flex items-start justify-between gap-3"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="font-medium tabular-nums">
+                                            {formatIDR(payment.amount)}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {formatDate(payment.paid_at)}
+                                            {payment.creator
+                                                ? ` · ${payment.creator.name}`
+                                                : ''}
+                                            {payment.notes
+                                                ? ` · ${payment.notes}`
+                                                : ''}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </CardContent>
+                    ) : (
+                        <CardContent className="pt-0 text-sm text-muted-foreground">
+                            Belum ada pembayaran tercatat.
+                        </CardContent>
+                    )}
                 </Card>
             </div>
 

@@ -5,6 +5,7 @@ import {
     readLiveSnapshot,
     type PosLiveSnapshot,
 } from '@/components/pos/buyer-display';
+import { onLiveSnapshot } from '@/lib/pwa';
 
 const STALE_MS = 15000;
 const SUCCESS_HOLD_MS = 5000;
@@ -21,6 +22,8 @@ export default function PosDisplay({
     useEffect(() => {
         const refresh = () => setSnapshot(readLiveSnapshot());
         refresh();
+        // Urutan pembaruan: BroadcastChannel (instan) → storage event → polling.
+        const stopLive = onLiveSnapshot(refresh);
         const onStorage = (e: StorageEvent) => {
             if (e.key === null || e.key.endsWith(':pos:live:v1')) {
                 refresh();
@@ -29,6 +32,7 @@ export default function PosDisplay({
         window.addEventListener('storage', onStorage);
         const timer = setInterval(refresh, 2000);
         return () => {
+            stopLive();
             window.removeEventListener('storage', onStorage);
             clearInterval(timer);
         };

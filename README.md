@@ -174,14 +174,64 @@ Endpoint yang tersedia:
 Generate hasil ML dari Laravel setelah service berjalan:
 
 ```powershell
-php artisan forecast:generate
-php artisan anomalies:scan
-php artisan recommend:generate
-php artisan customers:segment
+php artisan forecast:generate --queue
+php artisan anomalies:scan --queue
+php artisan recommend:generate --queue
+php artisan customers:segment --queue
 ```
 
-Command tersebut melakukan aggregation data di Laravel, memanggil Python service,
-lalu menyimpan hasilnya ke application table untuk dashboard dan report.
+Tanpa `--queue`, command berjalan sinkron. Dengan `--queue`, pekerjaan masuk
+antrean `ml` (sama seperti scheduler mingguan/harian) agar request dan
+scheduler tidak terblokir oleh komputasi ML. Setiap eksekusi — antre maupun
+sinkron — tercatat di tabel `ml_runs` (waktu, durasi, jumlah baris, error).
+
+Pekerjaan latar lain:
+
+```powershell
+php artisan queue:work --queue=default,ml,ai,ocr
+```
+
+- `ocr`: ekstraksi faktur setelah upload dokumen (`documents.store`
+  langsung mengantrekan `ProcessDocumentOcrJob`).
+- `ai`: pemanasan `DailyBriefing` terjadwal tiap 05:30 agar dashboard instan.
+- Dokumen gagal OCR dapat diantre ulang (`POST documents/{id}/retry`) atau
+  ditolak (`POST documents/{id}/reject`).
+
+Health probe untuk monitor/uptime:
+
+```powershell
+Invoke-WebRequest http://localhost:8000/health
+```
+
+Idempotency checkout: kirim header `X-Idempotency-Key` (atau field
+`idempotency_key`) pada `POST pos/checkout` agar retry jaringan tidak
+menciptakan transaksi ganda.
+
+## PWA dan Offline Kasir
+
+Halaman kasir (`/pos`) dapat di-install sebagai aplikasi (manifest +
+ikon di `public/`) dan tetap dibuka saat internet putus: service worker
+(`public/sw.js`, tanpa dependensi build) menyajikan shell dan snapshot
+katalog terakhir.
+
+Aturan offline:
+
+- Katalog/harga/stok yang tampil diberi label waktu snapshot; harga dan
+  stok final selalu mengikuti server saat transaksi dikirim.
+- Checkout offline masuk antrean IndexedDB (`idempotency_key` dibuat
+  sekali di kasir) dan dikirim otomatis FIFO saat online — retry tidak
+  menciptakan transaksi ganda.
+- Konflik server (stok kurang, sesi ditutup) berstatus `conflict` dan
+  wajib ditinjau kasir: muat kembali ke kasir atau hapus. Tidak ada
+  transaksi yang diam-diam hilang.
+- Tutup sesi kas wajib online. Layar pembeli memakai BroadcastChannel
+  (fallback: storage event + polling 2 detik).
+
+Regenerasi ikon setelah ganti logo:
+
+```powershell
+ml\.venv\Scripts\python.exe scripts\gen-pwa-icons.py
+```
 
 ## Built-in Role
 
@@ -237,10 +287,9 @@ Foundation yang sudah tersedia:
 
 Prioritas berikutnya:
 
-- Menyelesaikan document intelligence dan invoice verification workflow
-- Memperluas operational dan financial reporting
-- Meningkatkan scheduled ML execution dan monitoring
+- Memperluas operational dan financial reporting (arus kas, HPP, rekonsiliasi sesi kas)
 - Menambahkan dokumentasi production deployment dan observability
+- Mengevaluasi Redis + Horizon saat beban antrean membutuhkan (saat ini database driver sudah cukup)
 
 ## License
 

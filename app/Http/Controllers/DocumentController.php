@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessDocumentOcrJob;
 use App\Models\Document;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\Supplier;
-use App\Services\DocumentOcr;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -36,9 +36,9 @@ class DocumentController extends Controller
     }
 
     /**
-     * Store the upload and run OCR synchronously.
+     * Store the upload and queue OCR so the request stays fast.
      */
-    public function store(Request $request, DocumentOcr $ocr): RedirectResponse
+    public function store(Request $request): RedirectResponse
     {
         Gate::authorize('create', Document::class);
 
@@ -53,27 +53,13 @@ class DocumentController extends Controller
         $document = Document::create([
             'type' => 'purchase_invoice',
             'file_path' => $path,
-            'status' => 'processing',
+            'status' => 'pending',
             'uploaded_by' => $request->user()->id,
         ]);
 
-        $extracted = $ocr->extract($file);
+        ProcessDocumentOcrJob::dispatch($document->id);
 
-        if ($extracted === null) {
-            $document->update(['status' => 'failed']);
-            Inertia::flash('toast', ['type' => 'error', 'message' => 'OCR gagal. Pastikan layanan ML berjalan atau coba lagi.']);
-
-            return to_route('documents.show', $document);
-        }
-
-        $document->update([
-            'ocr_text' => $extracted['raw_text'] ?? null,
-            'extracted_data' => $extracted,
-            'status' => 'processed',
-            'processed_at' => now(),
-        ]);
-
-        Inertia::flash('toast', ['type' => 'success', 'message' => 'Dokumen diproses. Periksa hasilnya sebelum membuat pembelian.']);
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Dokumen diunggah. OCR berjalan di latar belakang, periksa lagi sesaat lagi.']);
 
         return to_route('documents.show', $document);
     }
@@ -144,6 +130,47 @@ class DocumentController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name', 'sku', 'cost_price']),
         ]);
+    }
+
+    /**
+     * Re-queue OCR for a failed document.
+     */
+    public function retry(Document $document): RedirectResponse
+    {
+        Gate::authorize('verify', $document);
+
+        if (! in_array($document->status, ['failed', 'pending'], true)) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => 'Hanya dokumen gagal yang dapat diproses ulang.']);
+
+            return to_route('documents.show', $document);
+        }
+
+        $document->update(['status' => 'pending', 'processed_at' => null]);
+        ProcessDocumentOcrJob::dispatch($document->id);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'OCR dimasukkan ke antrean. Periksa lagi sesaat lagi.']);
+
+        return to_route('documents.show', $document);
+    }
+
+    /**
+     * Reject a document so it never becomes a purchase.
+     */
+    public function reject(Document $document): RedirectResponse
+    {
+        Gate::authorize('verify', $document);
+
+        if ($document->status === 'verified') {
+            Inertia::flash('toast', ['type' => 'error', 'message' => 'Dokumen yang sudah menjadi pembelian tidak dapat ditolak.']);
+
+            return to_route('documents.show', $document);
+        }
+
+        $document->update(['status' => 'rejected']);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Dokumen ditolak dan tidak akan menjadi pembelian.']);
+
+        return to_route('documents.show', $document);
     }
 
     /**

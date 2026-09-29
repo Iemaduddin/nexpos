@@ -7,13 +7,11 @@ use App\Http\Requests\StockAdjustment\UpdateStockAdjustmentRequest;
 use App\Models\Product;
 use App\Models\StockAdjustment;
 use App\Models\StockLevel;
-use App\Models\StockMovement;
 use App\Models\Store;
+use App\Services\StockAdjustmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -48,34 +46,9 @@ class StockAdjustmentController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreStockAdjustmentRequest $request): RedirectResponse
+    public function store(StoreStockAdjustmentRequest $request, StockAdjustmentService $adjustments): RedirectResponse
     {
-        $validated = $request->validated();
-
-        DB::transaction(function () use ($validated, $request): void {
-            $adjustment = StockAdjustment::create([
-                'number' => 'TMP-'.Str::uuid(),
-                'store_id' => $validated['store_id'],
-                'type' => $validated['type'],
-                'status' => 'draft',
-                'reason' => $validated['reason'] ?? null,
-                'created_by' => $request->user()->id,
-            ]);
-
-            foreach ($validated['items'] as $row) {
-                $adjustment->items()->create([
-                    'product_id' => $row['product_id'],
-                    'variant_id' => $row['variant_id'] ?? null,
-                    'qty_system' => 0,
-                    'qty_actual' => $row['qty_actual'],
-                    'qty_diff' => 0,
-                ]);
-            }
-
-            $adjustment->update([
-                'number' => sprintf('ADJ-%s-%04d', now()->format('Ymd'), $adjustment->id),
-            ]);
-        });
+        $adjustments->createDraft($request->user(), $request->validated());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Penyesuaian stok berhasil dibuat sebagai draf.']);
 
@@ -118,7 +91,7 @@ class StockAdjustmentController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateStockAdjustmentRequest $request, StockAdjustment $adjustment): RedirectResponse
+    public function update(UpdateStockAdjustmentRequest $request, StockAdjustment $adjustment, StockAdjustmentService $adjustments): RedirectResponse
     {
         if ($adjustment->status !== 'draft') {
             Inertia::flash('toast', ['type' => 'error', 'message' => 'Hanya draf yang dapat diubah.']);
@@ -126,27 +99,7 @@ class StockAdjustmentController extends Controller
             return to_route('adjustments.show', $adjustment);
         }
 
-        $validated = $request->validated();
-
-        DB::transaction(function () use ($validated, $adjustment): void {
-            $adjustment->items()->delete();
-
-            foreach ($validated['items'] as $row) {
-                $adjustment->items()->create([
-                    'product_id' => $row['product_id'],
-                    'variant_id' => $row['variant_id'] ?? null,
-                    'qty_system' => 0,
-                    'qty_actual' => $row['qty_actual'],
-                    'qty_diff' => 0,
-                ]);
-            }
-
-            $adjustment->update([
-                'store_id' => $validated['store_id'],
-                'type' => $validated['type'],
-                'reason' => $validated['reason'] ?? null,
-            ]);
-        });
+        $adjustments->updateDraft($adjustment, $request->validated());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Penyesuaian stok berhasil diperbarui.']);
 
@@ -177,7 +130,7 @@ class StockAdjustmentController extends Controller
     /**
      * Approve a draft and post the stock difference to the ledger.
      */
-    public function approve(Request $request, StockAdjustment $adjustment): RedirectResponse
+    public function approve(Request $request, StockAdjustment $adjustment, StockAdjustmentService $adjustments): RedirectResponse
     {
         Gate::authorize('approve', $adjustment);
 
@@ -187,51 +140,7 @@ class StockAdjustmentController extends Controller
             return to_route('adjustments.show', $adjustment);
         }
 
-        DB::transaction(function () use ($request, $adjustment): void {
-            foreach ($adjustment->items()->with(['product', 'variant'])->get() as $item) {
-                $level = StockLevel::firstOrCreate([
-                    'store_id' => $adjustment->store_id,
-                    'product_id' => $item->product_id,
-                    'variant_id' => $item->variant_id,
-                ], ['qty_on_hand' => 0, 'qty_reserved' => 0]);
-
-                $system = $level->qty_on_hand;
-                $diff = round($item->qty_actual - $system, 3);
-
-                $item->update(['qty_system' => $system, 'qty_diff' => $diff]);
-
-                if ($diff == 0) {
-                    continue;
-                }
-
-                $level->increment('qty_on_hand', $diff);
-
-                $unitCost = $item->variant_id !== null
-                    ? $item->variant->cost_price
-                    : $item->product->cost_price;
-
-                StockMovement::create([
-                    'product_id' => $item->product_id,
-                    'variant_id' => $item->variant_id,
-                    'store_id' => $adjustment->store_id,
-                    'type' => 'adjustment',
-                    'reference_type' => 'stock_adjustment',
-                    'reference_id' => $adjustment->id,
-                    'qty_change' => $diff,
-                    'qty_before' => $system,
-                    'qty_after' => $system + $diff,
-                    'unit_cost' => $unitCost,
-                    'notes' => "Penyesuaian {$adjustment->number} ({$adjustment->type})",
-                    'created_by' => $request->user()->id,
-                ]);
-            }
-
-            $adjustment->update([
-                'status' => 'approved',
-                'approved_by' => $request->user()->id,
-                'approved_at' => now(),
-            ]);
-        });
+        $adjustments->approve($request->user(), $adjustment);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Penyesuaian disetujui dan stok diperbarui.']);
 

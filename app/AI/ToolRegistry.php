@@ -4,6 +4,8 @@ namespace App\AI;
 
 use App\AI\Tools\AiTool;
 use App\AI\Tools\GetAnomalies;
+use App\AI\Tools\GetCashFlow;
+use App\AI\Tools\GetCogsSummary;
 use App\AI\Tools\GetCustomerSegments;
 use App\AI\Tools\GetCustomerSummary;
 use App\AI\Tools\GetForecast;
@@ -18,6 +20,7 @@ use App\AI\Tools\GetSalesSummary;
 use App\AI\Tools\GetStockMovements;
 use App\AI\Tools\GetTopCustomers;
 use App\AI\Tools\GetTopProducts;
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Support\Facades\Validator;
 
@@ -36,6 +39,8 @@ class ToolRegistry
         'get_sales_summary' => GetSalesSummary::class,
         'get_sales_comparison' => GetSalesComparison::class,
         'get_profit_summary' => GetProfitSummary::class,
+        'get_cogs_summary' => GetCogsSummary::class,
+        'get_cash_flow' => GetCashFlow::class,
         'get_top_products' => GetTopProducts::class,
         'get_product_performance' => GetProductPerformance::class,
         'get_low_stock_products' => GetLowStockProducts::class,
@@ -94,21 +99,51 @@ class ToolRegistry
     public function run(User $user, string $name, array $args): array
     {
         if (! $this->has($name)) {
+            $this->audit($user, $name, $args, 'rejected');
             throw new AiException("Tool {$name} tidak tersedia.");
         }
 
         $tool = $this->make(self::TOOLS[$name]);
 
         if (! $tool->authorize($user)) {
+            $this->audit($user, $name, $args, 'unauthorized');
             throw new AiException('Anda tidak memiliki izin untuk mengakses data ini.');
         }
 
         $validator = Validator::make($args, $tool->rules());
 
         if ($validator->fails()) {
+            $this->audit($user, $name, $args, 'invalid');
             throw new AiException('Parameter tool tidak valid.');
         }
 
-        return $tool->execute($user, $validator->validated());
+        $result = $tool->execute($user, $validator->validated());
+
+        $this->audit($user, $name, $validator->validated(), 'ok');
+
+        return $result;
+    }
+
+    /**
+     * Record AI tool invocations. Audit must never break the chat flow.
+     *
+     * @param  array<string, mixed>  $args
+     */
+    private function audit(User $user, string $name, array $args, string $status): void
+    {
+        try {
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => 'ai.tool',
+                'auditable_type' => null,
+                'auditable_id' => null,
+                'old_values' => null,
+                'new_values' => ['tool' => $name, 'args' => $args, 'status' => $status],
+                'ip' => request()->ip(),
+                'user_agent' => substr((string) request()->userAgent(), 0, 500),
+            ]);
+        } catch (\Throwable) {
+            // Never break AI answers because audit storage failed.
+        }
     }
 }

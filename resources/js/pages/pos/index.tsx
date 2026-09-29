@@ -1,8 +1,10 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+    AlertTriangle,
     Banknote,
     CheckCircle2,
+    CloudUpload,
     Minus,
     Package,
     Pause,
@@ -15,6 +17,7 @@ import {
     Tv,
     UserPlus,
     Wallet,
+    WifiOff,
 } from 'lucide-react';
 import { quickStore as quickCustomerStore } from '@/actions/App/Http/Controllers/CustomerController';
 import {
@@ -35,21 +38,33 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import {
-    POS_LIVE_KEY,
-    type BuyerLine,
-} from '@/components/pos/buyer-display';
+import { POS_LIVE_KEY, type BuyerLine } from '@/components/pos/buyer-display';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/sonner';
 import { formatIDR, formatQty } from '@/lib/format';
+import {
+    broadcastLiveSnapshot,
+    requestBackgroundSync,
+    useOnline,
+} from '@/lib/pwa';
+import {
+    enqueueCheckout,
+    flushOutbox,
+    listQueued,
+    removeQueued,
+    type CheckoutPayload,
+    type QueuedCheckout,
+    type SyncOutcome,
+} from '@/lib/pos-outbox';
 import { paymentMethodLabel } from '@/lib/sale';
 import { dashboard } from '@/routes';
 import type { PosCustomer, PosProduct } from '@/types';
 
 type Props = {
+    snapshot_at: string;
     store: { id: number; name: string };
     openSession: { id: number; opened_at: string | null } | null;
     tax_rate: number;
@@ -139,9 +154,7 @@ function useCountUp(target: number, active: boolean, duration = 900): number {
         const startedAt = performance.now();
         const tick = (now: number) => {
             const progress = Math.min(1, (now - startedAt) / duration);
-            setValue(
-                Math.round(target * (1 - Math.pow(1 - progress, 3))),
-            );
+            setValue(Math.round(target * (1 - Math.pow(1 - progress, 3))));
             if (progress < 1) {
                 raf = requestAnimationFrame(tick);
             }
@@ -200,6 +213,7 @@ const paymentMethodOptions = Object.entries(paymentMethodLabel).map(
 );
 
 export default function PosIndex({
+    snapshot_at,
     store,
     openSession,
     tax_rate,
@@ -234,6 +248,23 @@ export default function PosIndex({
     const [receipt, setReceipt] = useState<CompletedSale | null>(null);
     const [receiptOpen, setReceiptOpen] = useState(false);
     const [submitErrors, setSubmitErrors] = useState<string[]>([]);
+    const online = useOnline();
+    const [outbox, setOutbox] = useState<QueuedCheckout[]>([]);
+    const [flushing, setFlushing] = useState(false);
+    const flushingRef = useRef(false);
+
+    const snapshotTime = useMemo(() => {
+        const parsed = new Date(snapshot_at).getTime();
+        if (Number.isNaN(parsed)) {
+            return null;
+        }
+        return new Intl.DateTimeFormat('id-ID', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+        }).format(new Date(parsed));
+    }, [snapshot_at]);
     const changeCountUp = useCountUp(
         receipt?.change_amount ?? 0,
         receipt !== null,
@@ -283,6 +314,7 @@ export default function PosIndex({
                             : null,
                     }),
                 );
+                broadcastLiveSnapshot();
             } catch {
                 // abaikan keterbatasan penyimpanan lokal
             }
@@ -296,8 +328,7 @@ export default function PosIndex({
     // Transaksi tertahan hanya berlaku di gerai tempat menahannya.
     // Entri lama tanpa storeId tetap ditampilkan agar tidak hilang.
     const storeHeld = held.filter(
-        (entry) =>
-            entry.storeId === undefined || entry.storeId === store.id,
+        (entry) => entry.storeId === undefined || entry.storeId === store.id,
     );
 
     const cartEmpty = cart.length === 0;
@@ -622,6 +653,207 @@ export default function PosIndex({
         });
     }
 
+    function buildPayload(idemKey: string): CheckoutPayload {
+        return {
+            customer_id: customerId ? Number(customerId) : null,
+            discount_total: canDiscount ? discountTotal : 0,
+            idempotency_key: idemKey,
+            items: cart.map((line) => ({
+                product_id: line.product_id,
+                variant_id: line.variant_id,
+                qty: line.qty,
+                discount: canDiscount ? line.discount : 0,
+            })),
+            payments: payments.map((row) => ({
+                method: row.method,
+                amount: Number(row.amount) || 0,
+                reference_no: row.reference_no || null,
+            })),
+        };
+    }
+
+    function newIdemKey(): string {
+        try {
+            return crypto.randomUUID();
+        } catch {
+            return `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+        }
+    }
+
+    /**
+     * One checkout attempt. 'retry' ONLY means no connectivity
+     * (fetch threw) — every other failure is final for this attempt.
+     */
+    async function sendCheckout(
+        payload: CheckoutPayload,
+    ): Promise<SyncOutcome> {
+        const token = xsrfToken();
+        let response: Response;
+        try {
+            response = await fetch(checkout.url(), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-Idempotency-Key': payload.idempotency_key,
+                    ...(token ? { 'X-XSRF-TOKEN': token } : {}),
+                },
+                body: JSON.stringify(payload),
+            });
+        } catch {
+            return { kind: 'retry' };
+        }
+
+        if (response.status === 422) {
+            const data = (await response.json()) as {
+                errors?: Record<string, string[]>;
+                message?: string;
+            };
+            const messages = Object.values(data.errors ?? {}).flat();
+            return {
+                kind: 'conflict',
+                messages:
+                    messages.length > 0
+                        ? messages.map(String)
+                        : [data.message ?? 'Transaksi gagal. Periksa kembali.'],
+            };
+        }
+
+        if (response.status === 419) {
+            throw new Error('Sesi kedaluwarsa. Muat ulang halaman ini.');
+        }
+
+        if (!response.ok) {
+            throw new Error(`Transaksi gagal diproses (${response.status}).`);
+        }
+
+        const data = (await response.json()) as { sale: CompletedSale };
+        return { kind: 'synced', sale: data.sale };
+    }
+
+    function handleSyncedSale(sale: CompletedSale) {
+        resetTransaction();
+        setReceipt(sale);
+        setReceiptOpen(true);
+        toast.success(`Transaksi ${sale.number} berhasil.`);
+    }
+
+    async function refreshOutbox() {
+        try {
+            setOutbox(await listQueued());
+        } catch {
+            // antrean lokal tidak tersedia; kasir tetap jalan online
+        }
+    }
+
+    async function runFlush() {
+        if (flushingRef.current) {
+            return;
+        }
+        flushingRef.current = true;
+        setFlushing(true);
+        try {
+            const result = await flushOutbox(sendCheckout, (_entry, sale) => {
+                handleSyncedSale(sale as CompletedSale);
+            });
+            if (result.synced > 0 || result.conflicts > 0) {
+                await refreshOutbox();
+            }
+            if (result.conflicts > 0) {
+                toast.warning(
+                    `${result.conflicts} transaksi antre butuh peninjauan (stok/harga berubah).`,
+                );
+            }
+        } catch {
+            // koneksi masih bermasalah; antrean tetap tersimpan lokal
+        } finally {
+            flushingRef.current = false;
+            setFlushing(false);
+        }
+    }
+
+    async function discardQueued(idemKey: string) {
+        await removeQueued(idemKey);
+        await refreshOutbox();
+    }
+
+    function restoreQueued(entry: QueuedCheckout) {
+        const restored: CartLine[] = [];
+        const missing: string[] = [];
+
+        for (const item of entry.payload.items) {
+            const tile = tiles.find(
+                (row) =>
+                    row.product_id === item.product_id &&
+                    (row.variant_id ?? null) === (item.variant_id ?? null),
+            );
+            if (!tile) {
+                missing.push(`#${item.product_id}`);
+                continue;
+            }
+            restored.push({ ...tile, qty: item.qty, discount: item.discount });
+        }
+
+        if (restored.length === 0) {
+            toast.error('Produk antrean tidak lagi tersedia di katalog.');
+            return;
+        }
+
+        setCart(restored);
+        if (missing.length > 0) {
+            toast.warning(
+                `${missing.length} item tidak ditemukan dan dilewati.`,
+            );
+        }
+        void discardQueued(entry.idemKey);
+        toast.info('Antrean dimuat kembali ke kasir. Periksa lalu bayar.');
+    }
+
+    // Antrean: muat saat buka, kirim saat online / pesan SW / interval.
+    useEffect(() => {
+        void refreshOutbox();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (online) {
+            void runFlush();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [online]);
+
+    useEffect(() => {
+        const onMessage = (event: MessageEvent) => {
+            if (
+                event.data &&
+                typeof event.data === 'object' &&
+                (event.data as { type?: string }).type === 'NEXPOS_FLUSH_OUTBOX'
+            ) {
+                void runFlush();
+            }
+        };
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', onMessage);
+        }
+        const timer = setInterval(() => {
+            if (navigator.onLine) {
+                void runFlush();
+            }
+        }, 15000);
+        return () => {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.removeEventListener(
+                    'message',
+                    onMessage,
+                );
+            }
+            clearInterval(timer);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     async function submit() {
         if (!canPay || processing) {
             return;
@@ -629,58 +861,42 @@ export default function PosIndex({
         setProcessing(true);
         setSubmitErrors([]);
         try {
-            const token = xsrfToken();
-            const response = await fetch(checkout.url(), {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    ...(token ? { 'X-XSRF-TOKEN': token } : {}),
-                },
-                body: JSON.stringify({
-                    customer_id: customerId || null,
-                    discount_total: canDiscount ? discountTotal : 0,
-                    items: cart.map((line) => ({
-                        product_id: line.product_id,
-                        variant_id: line.variant_id,
-                        qty: line.qty,
-                        discount: canDiscount ? line.discount : 0,
-                    })),
-                    payments: payments.map((row) => ({
-                        method: row.method,
-                        amount: Number(row.amount) || 0,
-                        reference_no: row.reference_no || null,
-                    })),
-                }),
-            });
-            if (response.status === 422) {
-                const data = (await response.json()) as {
-                    errors?: Record<string, string[]>;
-                    message?: string;
-                };
-                const messages = Object.values(data.errors ?? {}).flat();
-                setSubmitErrors(
-                    messages.length > 0
-                        ? messages.map(String)
-                        : [
-                              data.message ??
-                                  'Transaksi gagal. Periksa kembali.',
-                          ],
-                );
+            const payload = buildPayload(newIdemKey());
+            const outcome = await sendCheckout(payload);
+
+            if (outcome.kind === 'synced') {
+                handleSyncedSale(outcome.sale as CompletedSale);
                 return;
             }
-            if (!response.ok) {
-                throw new Error('failed');
+
+            if (outcome.kind === 'conflict') {
+                setSubmitErrors(outcome.messages);
+                return;
             }
-            const data = (await response.json()) as { sale: CompletedSale };
+
+            // Offline: simpan persis body yang akan dikirim, kirim otomatis nanti.
+            await enqueueCheckout({
+                idemKey: payload.idempotency_key,
+                createdAt: Date.now(),
+                storeId: store.id,
+                storeName: store.name,
+                customerName: liveCustomerName,
+                itemCount: cart.reduce((sum, line) => sum + line.qty, 0),
+                grand,
+                payload,
+            });
             resetTransaction();
-            setReceipt(data.sale);
-            setReceiptOpen(true);
-            toast.success(`Transaksi ${data.sale.number} berhasil.`);
-        } catch {
-            setSubmitErrors(['Transaksi gagal diproses. Coba lagi.']);
+            await refreshOutbox();
+            requestBackgroundSync();
+            toast.info(
+                'Offline — transaksi disimpan dan akan dikirim otomatis.',
+            );
+        } catch (error) {
+            setSubmitErrors([
+                error instanceof Error
+                    ? error.message
+                    : 'Transaksi gagal diproses. Coba lagi.',
+            ]);
         } finally {
             setProcessing(false);
         }
@@ -838,7 +1054,7 @@ export default function PosIndex({
             }
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && canPay) {
                 e.preventDefault();
-                submit();
+                void submit();
             }
         };
         window.addEventListener('keydown', onKeyDown);
@@ -881,7 +1097,96 @@ export default function PosIndex({
                 </Alert>
             )}
 
-            <div className="grid items-start gap-4 print:hidden xl:grid-cols-[1fr_380px]">
+            {!online && (
+                <Alert className="border-amber-500/50 print:hidden">
+                    <WifiOff className="size-4" />
+                    <AlertDescription>
+                        Offline — memakai data produk per{' '}
+                        {snapshotTime ?? 'kunjungan terakhir'}. Harga dan stok
+                        final mengikuti server saat transaksi dikirim.
+                    </AlertDescription>
+                </Alert>
+            )}
+
+            {outbox.length > 0 && (
+                <Card className="border-dashed print:hidden">
+                    <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">
+                            Antrean offline ({outbox.length})
+                        </CardTitle>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={flushing || !online}
+                            onClick={() => void runFlush()}
+                        >
+                            {flushing ? <Spinner /> : null}
+                            <CloudUpload className="size-4" />
+                            Kirim sekarang
+                        </Button>
+                    </CardHeader>
+                    <CardContent className="grid gap-2 p-4 pt-0 text-sm">
+                        {outbox.map((entry) => (
+                            <div
+                                key={entry.idemKey}
+                                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2.5"
+                            >
+                                <div className="min-w-0">
+                                    <p className="font-medium tabular-nums">
+                                        {formatIDR(entry.grand)} ·{' '}
+                                        {entry.itemCount} item
+                                        {entry.customerName
+                                            ? ` · ${entry.customerName}`
+                                            : ''}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {new Date(
+                                            entry.createdAt,
+                                        ).toLocaleString('id-ID', {
+                                            day: 'numeric',
+                                            month: 'short',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                        })}
+                                        {entry.status === 'conflict' &&
+                                        entry.error
+                                            ? ` · Konflik: ${entry.error}`
+                                            : ' · menunggu kirim'}
+                                    </p>
+                                </div>
+                                <div className="flex gap-2">
+                                    {entry.status === 'conflict' && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => restoreQueued(entry)}
+                                        >
+                                            Muat ke kasir
+                                        </Button>
+                                    )}
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() =>
+                                            void discardQueued(entry.idemKey)
+                                        }
+                                    >
+                                        <Trash2 className="size-4" />
+                                        Hapus
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <AlertTriangle className="size-3.5" />
+                            Transaksi antre belum tercatat di server — struk
+                            final terbit setelah terkirim.
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
+
+            <div className="grid items-start gap-4 xl:grid-cols-[1fr_380px] print:hidden">
                 <Card>
                     <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-3">
                         <div className="relative flex-1">
@@ -948,7 +1253,13 @@ export default function PosIndex({
                                 </Button>
                             ))}
                             <span className="ml-auto hidden text-[11px] text-muted-foreground lg:block">
-                                Tekan <kbd className="rounded border px-1">/</kbd> untuk cari · <kbd className="rounded border px-1">Ctrl+Enter</kbd> untuk bayar
+                                Tekan{' '}
+                                <kbd className="rounded border px-1">/</kbd>{' '}
+                                untuk cari ·{' '}
+                                <kbd className="rounded border px-1">
+                                    Ctrl+Enter
+                                </kbd>{' '}
+                                untuk bayar
                             </span>
                         </div>
                         {filtered.length === 0 ? (
@@ -1179,7 +1490,8 @@ export default function PosIndex({
                                                         onValueChange={(raw) =>
                                                             setLineDiscount(
                                                                 line.key,
-                                                                Number(raw) || 0,
+                                                                Number(raw) ||
+                                                                    0,
                                                             )
                                                         }
                                                         placeholder="Diskon"
@@ -1266,9 +1578,7 @@ export default function PosIndex({
                                                             : 'text-muted-foreground hover:bg-muted'
                                                     }`}
                                                 >
-                                                    {mode === 'rp'
-                                                        ? 'Rp'
-                                                        : '%'}
+                                                    {mode === 'rp' ? 'Rp' : '%'}
                                                 </button>
                                             ),
                                         )}
@@ -1392,7 +1702,8 @@ export default function PosIndex({
                                             value={row.reference_no}
                                             onChange={(e) =>
                                                 updatePay(row.key, {
-                                                    reference_no: e.target.value,
+                                                    reference_no:
+                                                        e.target.value,
                                                 })
                                             }
                                             placeholder="No. referensi / approval"
@@ -1610,11 +1921,11 @@ export default function PosIndex({
                     }
                 }}
             >
-                <DialogContent className="print:hidden sm:max-w-md">
+                <DialogContent className="sm:max-w-md print:hidden">
                     {receipt && (
                         <>
                             <div className="flex flex-col items-center gap-1 py-2 text-center">
-                                <span className="flex size-12 items-center justify-center rounded-full bg-green-500/15 animate-in zoom-in-50 duration-200">
+                                <span className="flex size-12 animate-in items-center justify-center rounded-full bg-green-500/15 duration-200 zoom-in-50">
                                     <CheckCircle2 className="size-6 text-green-600" />
                                 </span>
                                 <DialogTitle>Pembayaran berhasil</DialogTitle>
@@ -1683,9 +1994,7 @@ export default function PosIndex({
                                     asChild
                                     className="flex-1"
                                 >
-                                    <Link href={receipt.url}>
-                                        Lihat detail
-                                    </Link>
+                                    <Link href={receipt.url}>Lihat detail</Link>
                                 </Button>
                                 <Button
                                     type="button"
@@ -1715,9 +2024,9 @@ export default function PosIndex({
                         </p>
                         <p className="text-center text-xs">
                             {receipt.completed_at
-                                ? new Date(
-                                      receipt.completed_at,
-                                  ).toLocaleString('id-ID')
+                                ? new Date(receipt.completed_at).toLocaleString(
+                                      'id-ID',
+                                  )
                                 : ''}
                             {receipt.cashier ? ` · ${receipt.cashier}` : ''}
                         </p>
@@ -1764,7 +2073,6 @@ export default function PosIndex({
                     </div>
                 </div>
             )}
-
         </>
     );
 }

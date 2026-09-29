@@ -43,6 +43,7 @@ class StoreSaleRequest extends FormRequest
             'payments.*.method' => ['required', 'string', Rule::in($paymentMethods)],
             'payments.*.amount' => ['required', 'integer', 'min:1'],
             'payments.*.reference_no' => ['nullable', 'string', 'max:100'],
+            'idempotency_key' => ['nullable', 'string', 'max:64'],
         ];
     }
 

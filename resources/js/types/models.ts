@@ -193,6 +193,24 @@ export type CashSession = {
     expected?: number;
 };
 
+export type SessionBreakdown = {
+    opening_balance: number;
+    sales_count: number;
+    by_method: { method: string; amount: number; payments: number }[];
+    cash_sales: number;
+    returns_count: number;
+    refunds: number;
+    returns: {
+        id: number;
+        number: string;
+        total_refund: number;
+        created_at: string | null;
+    }[];
+    expected: number;
+    actual: number | null;
+    difference: number | null;
+};
+
 export type Overview = {
     revenue: number;
     refunds: number;
@@ -249,6 +267,67 @@ export type StockSummary = {
 export type CategoryRevenue = {
     name: string;
     revenue: number;
+};
+
+export type CogsSummary = {
+    gross_cogs: number;
+    returned_cogs: number;
+    net_cogs: number;
+    net_revenue: number;
+    gross_margin: number;
+    margin_pct: number | null;
+};
+
+export type CogsProductRow = {
+    id: number;
+    name: string;
+    sku: string;
+    qty: number;
+    revenue: number;
+    refunds: number;
+    cogs: number;
+    margin: number;
+};
+
+export type CogsDailyRow = {
+    date: string;
+    label: string;
+    revenue: number;
+    cogs: number;
+    margin: number;
+};
+
+export type CashFlowMethod = {
+    method: string;
+    amount: number;
+};
+
+export type CashFlowDailyRow = {
+    date: string;
+    label: string;
+    in: number;
+    out: number;
+    net: number;
+};
+
+export type CashFlow = {
+    opening_balance: number;
+    cash_in: number;
+    cash_in_by_method: CashFlowMethod[];
+    cash_out_purchases: number;
+    cash_out_refunds: number;
+    cash_out: number;
+    net_flow: number;
+    closing_balance: number;
+    daily: CashFlowDailyRow[];
+};
+
+export type PurchasePayment = {
+    id: number;
+    amount: number;
+    paid_at: string;
+    notes: string | null;
+    creator?: { id: number; name: string } | null;
 };
 
 export type ForecastDigest = {
@@ -477,6 +556,7 @@ export type Purchase = {
     supplier?: { id: number; name: string; phone?: string | null } | null;
     store?: { id: number; name: string } | null;
     items?: PurchaseItem[];
+    payments?: PurchasePayment[];
     creator?: { id: number; name: string } | null;
 };
 

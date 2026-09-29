@@ -5,9 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\CashSession\CloseCashSessionRequest;
 use App\Http\Requests\CashSession\StoreCashSessionRequest;
 use App\Models\CashSession;
-use App\Models\Payment;
-use App\Models\SaleReturn;
 use App\Models\Store;
+use App\Services\CashSessionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -19,7 +18,7 @@ class CashSessionController extends Controller
     /**
      * Display open sessions and history.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, CashSessionService $sessions): Response
     {
         Gate::authorize('viewAny', CashSession::class);
 
@@ -29,7 +28,7 @@ class CashSessionController extends Controller
             ->orderByDesc('opened_at')
             ->get()
             ->map(fn ($session) => array_merge($session->toArray(), [
-                'expected' => $this->expectedFor($session),
+                'expected' => $sessions->expectedFor($session),
             ]));
 
         $sessions = CashSession::query()
@@ -76,9 +75,24 @@ class CashSessionController extends Controller
     }
 
     /**
+     * Reconciliation detail: drawer math, methods, and refunds.
+     */
+    public function show(CashSession $session, CashSessionService $sessions): Response
+    {
+        Gate::authorize('view', $session);
+
+        $session->load(['store:id,name', 'opener:id,name', 'closer:id,name']);
+
+        return Inertia::render('sessions/show', [
+            'session' => $session,
+            'breakdown' => $sessions->breakdown($session),
+        ]);
+    }
+
+    /**
      * Close an open session with actual cash count.
      */
-    public function close(CloseCashSessionRequest $request, CashSession $session): RedirectResponse
+    public function close(CloseCashSessionRequest $request, CashSession $session, CashSessionService $sessions): RedirectResponse
     {
         if ($session->status !== 'open') {
             Inertia::flash('toast', ['type' => 'error', 'message' => 'Sesi ini sudah ditutup.']);
@@ -87,37 +101,19 @@ class CashSessionController extends Controller
         }
 
         // Route-model binding uses {session}; authorize ran in the request.
-        $expected = $this->expectedFor($session);
-        $actual = $request->validated()['closing_actual'];
+        $closed = $sessions->close($request->user(), $session, (int) $request->validated()['closing_actual']);
 
-        $session->update([
-            'closed_by' => $request->user()->id,
-            'closing_expected' => $expected,
-            'closing_actual' => $actual,
-            'difference' => $actual - $expected,
-            'status' => 'closed',
-            'closed_at' => now(),
-        ]);
+        $difference = (int) $closed->difference;
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => 'Sesi kas ditutup.']);
+        Inertia::flash('toast', $difference === 0
+            ? ['type' => 'success', 'message' => 'Sesi kas ditutup. Selisih nol, laci cocok.']
+            : ['type' => 'warning', 'message' => 'Sesi kas ditutup dengan selisih '.$this->rupiah($difference).'.']);
 
-        return to_route('sessions.index');
+        return to_route('sessions.show', $closed);
     }
 
-    /**
-     * Expected cash in drawer: opening + cash sales - refunds.
-     */
-    private function expectedFor(CashSession $session): int
+    private function rupiah(int $value): string
     {
-        $cashIn = Payment::query()
-            ->where('method', 'cash')
-            ->whereHas('sale', fn ($query) => $query->where('cash_session_id', $session->id))
-            ->sum('amount');
-
-        $refunds = SaleReturn::query()
-            ->whereHas('sale', fn ($query) => $query->where('cash_session_id', $session->id))
-            ->sum('total_refund');
-
-        return (int) $session->opening_balance + (int) $cashIn - (int) $refunds;
+        return 'Rp '.number_format($value, 0, ',', '.');
     }
 }

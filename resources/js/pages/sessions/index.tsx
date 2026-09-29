@@ -4,6 +4,7 @@ import { Plus, Wallet } from 'lucide-react';
 import {
     close,
     index,
+    show,
     store,
 } from '@/actions/App/Http/Controllers/CashSessionController';
 import { pos } from '@/actions/App/Http/Controllers/SaleController';
@@ -23,7 +24,6 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { CurrencyInput } from '@/components/ui/currency-input';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { formatIDR } from '@/lib/format';
@@ -111,10 +111,7 @@ function IndexActions() {
                                             Batal
                                         </Button>
                                     </DialogClose>
-                                    <Button
-                                        type="submit"
-                                        disabled={processing}
-                                    >
+                                    <Button type="submit" disabled={processing}>
                                         {processing && <Spinner />}
                                         Buka Sesi
                                     </Button>
@@ -202,6 +199,15 @@ export default function SessionIndex({
                                                     Ke Kasir
                                                 </Link>
                                             </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                asChild
+                                            >
+                                                <Link href={show(session.id)}>
+                                                    Rincian
+                                                </Link>
+                                            </Button>
                                         </div>
                                     )}
                                 </CardContent>
@@ -254,9 +260,12 @@ export default function SessionIndex({
                                             className="border-b last:border-0"
                                         >
                                             <td className="px-4 py-3">
-                                                <p className="font-medium">
+                                                <Link
+                                                    href={show(session.id)}
+                                                    className="font-medium underline-offset-4 hover:underline"
+                                                >
                                                     {session.store?.name ?? '–'}
-                                                </p>
+                                                </Link>
                                                 <p className="text-xs text-muted-foreground">
                                                     {session.opener?.name ??
                                                         '–'}

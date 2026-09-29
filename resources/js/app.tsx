@@ -5,6 +5,7 @@ import { initializeTheme } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import { registerServiceWorker } from '@/lib/pwa';
 
 const appName = import.meta.env.VITE_APP_NAME || 'NEXPOS';
 
@@ -38,3 +39,6 @@ void createInertiaApp({
 
 // This will set light / dark mode on load...
 initializeTheme();
+
+// Offline-capable POS shell (service worker serves cached /pos when down).
+registerServiceWorker();

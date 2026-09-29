@@ -8,6 +8,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\ReportController;
@@ -28,6 +29,8 @@ Route::get('/', function () {
         : to_route('login');
 })->name('home');
 
+Route::get('health', HealthController::class)->name('health');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -37,6 +40,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('reports/export', [ReportController::class, 'exportCsv'])
         ->middleware('permission:reports.view')
         ->name('reports.export');
+    Route::get('reports/export/cogs', [ReportController::class, 'exportCogs'])
+        ->middleware('permission:reports.view')
+        ->name('reports.export.cogs');
+    Route::get('reports/export/cash-flow', [ReportController::class, 'exportCashFlow'])
+        ->middleware('permission:reports.view')
+        ->name('reports.export.cash-flow');
 
     Route::get('ai', [AiChatController::class, 'index'])
         ->middleware('permission:ai.use')
@@ -79,6 +88,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('documents/{document}/verify', [DocumentController::class, 'verify'])
         ->middleware('permission:inventory.purchase')
         ->name('documents.verify');
+    Route::post('documents/{document}/retry', [DocumentController::class, 'retry'])
+        ->middleware('permission:inventory.purchase')
+        ->name('documents.retry');
+    Route::post('documents/{document}/reject', [DocumentController::class, 'reject'])
+        ->middleware('permission:inventory.purchase')
+        ->name('documents.reject');
     Route::delete('documents/{document}', [DocumentController::class, 'destroy'])
         ->middleware('permission:inventory.purchase')
         ->name('documents.destroy');
@@ -241,7 +256,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:sales.view')
         ->name('pos.display');
     Route::post('pos/checkout', [SaleController::class, 'checkout'])
-        ->middleware('permission:sales.create')
+        ->middleware(['permission:sales.create', 'throttle:60,1'])
         ->name('pos.checkout');
     Route::get('sales', [SaleController::class, 'index'])
         ->middleware('permission:sales.view')
@@ -260,6 +275,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('sessions', [CashSessionController::class, 'index'])
         ->middleware('permission:sales.view')
         ->name('sessions.index');
+    Route::get('sessions/{session}', [CashSessionController::class, 'show'])
+        ->middleware('permission:sales.view')
+        ->name('sessions.show');
     Route::post('sessions', [CashSessionController::class, 'store'])
         ->middleware('permission:sales.create')
         ->name('sessions.store');
