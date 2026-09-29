@@ -1,23 +1,41 @@
 import { Head, Link } from '@inertiajs/react';
+import { useState } from 'react';
 import { ResponsiveBar } from '@nivo/bar';
 import { ResponsiveLine } from '@nivo/line';
 import {
     CalendarRange,
     Download,
+    FileSpreadsheet,
+    FileText,
     TrendingDown,
     TrendingUp,
     Wallet,
 } from 'lucide-react';
 import {
     exportCashFlow,
+    exportCashFlowPdf,
     exportCogs,
+    exportCogsPdf,
     exportCsv,
+    exportHarianPdf,
     index,
 } from '@/actions/App/Http/Controllers/ReportController';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import ChartTooltip from '@/components/chart-tooltip';
 import EmptyState from '@/components/empty-state';
 import StatCard from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { compactIDR, nivoTheme, shortLabel } from '@/lib/chart';
 import { formatIDR } from '@/lib/format';
 import { confidenceLabel, segmentLabel } from '@/lib/ml';
 import { dashboard } from '@/routes';
@@ -33,6 +51,167 @@ import type {
     Overview,
     TopProduct,
 } from '@/types';
+
+type ExportReport = 'harian' | 'hpp' | 'kas';
+type ExportFormat = 'csv' | 'pdf';
+
+const EXPORT_REPORTS: { value: ExportReport; title: string; hint: string }[] = [
+    {
+        value: 'harian',
+        title: 'Laporan Harian',
+        hint: 'Omzet, refund, HPP, dan laba per tanggal.',
+    },
+    {
+        value: 'hpp',
+        title: 'HPP per Produk',
+        hint: 'Nilai pokok dan marjin tiap produk.',
+    },
+    {
+        value: 'kas',
+        title: 'Arus Kas',
+        hint: 'Saldo, kas masuk, dan kas keluar.',
+    },
+];
+
+function ExportDialog({ period }: { period: string }) {
+    const [open, setOpen] = useState(false);
+    const [report, setReport] = useState<ExportReport>('harian');
+    const [format, setFormat] = useState<ExportFormat>('pdf');
+
+    const targets: Record<ExportReport, Record<ExportFormat, string>> = {
+        harian: {
+            csv: exportCsv.url({ query: { period } }),
+            pdf: exportHarianPdf.url({ query: { period } }),
+        },
+        hpp: {
+            csv: exportCogs.url({ query: { period } }),
+            pdf: exportCogsPdf.url({ query: { period } }),
+        },
+        kas: {
+            csv: exportCashFlow.url({ query: { period } }),
+            pdf: exportCashFlowPdf.url({ query: { period } }),
+        },
+    };
+
+    function download() {
+        const link = document.createElement('a');
+        link.href = targets[report][format];
+        link.download = '';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setOpen(false);
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button size="sm" variant="outline">
+                    <Download className="size-4" />
+                    Export
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Export Laporan</DialogTitle>
+                    <DialogDescription>
+                        Pilih isi laporan dan format berkasnya.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                        Isi laporan
+                    </p>
+                    {EXPORT_REPORTS.map((item) => {
+                        const active = report === item.value;
+                        return (
+                            <button
+                                key={item.value}
+                                type="button"
+                                aria-pressed={active}
+                                onClick={() => setReport(item.value)}
+                                className={`flex items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors ${
+                                    active
+                                        ? 'border-primary bg-primary/5'
+                                        : 'hover:bg-muted/50'
+                                }`}
+                            >
+                                <span>
+                                    <span className="block text-sm font-medium">
+                                        {item.title}
+                                    </span>
+                                    <span className="block text-xs text-muted-foreground">
+                                        {item.hint}
+                                    </span>
+                                </span>
+                                <span
+                                    aria-hidden
+                                    className={`flex size-4 shrink-0 items-center justify-center rounded-full border ${
+                                        active
+                                            ? 'border-primary'
+                                            : 'border-muted-foreground/40'
+                                    }`}
+                                >
+                                    {active && (
+                                        <span className="size-2 rounded-full bg-primary" />
+                                    )}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+                <div className="grid gap-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                        Format berkas
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                            type="button"
+                            aria-pressed={format === 'pdf'}
+                            onClick={() => setFormat('pdf')}
+                            className={`flex flex-col items-center gap-1 rounded-lg border p-3 text-center transition-colors ${
+                                format === 'pdf'
+                                    ? 'border-primary bg-primary/5'
+                                    : 'hover:bg-muted/50'
+                            }`}
+                        >
+                            <FileText className="size-5" />
+                            <span className="text-sm font-medium">PDF</span>
+                            <span className="text-xs text-muted-foreground">
+                                Siap cetak & arsip
+                            </span>
+                        </button>
+                        <button
+                            type="button"
+                            aria-pressed={format === 'csv'}
+                            onClick={() => setFormat('csv')}
+                            className={`flex flex-col items-center gap-1 rounded-lg border p-3 text-center transition-colors ${
+                                format === 'csv'
+                                    ? 'border-primary bg-primary/5'
+                                    : 'hover:bg-muted/50'
+                            }`}
+                        >
+                            <FileSpreadsheet className="size-5" />
+                            <span className="text-sm font-medium">CSV</span>
+                            <span className="text-xs text-muted-foreground">
+                                Diolah di spreadsheet
+                            </span>
+                        </button>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button variant="outline">Batal</Button>
+                    </DialogClose>
+                    <Button onClick={download}>
+                        <Download className="size-4" />
+                        Unduh {format.toUpperCase()}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export default function ReportIndex({
     period,
@@ -127,6 +306,16 @@ export default function ReportIndex({
     const cogsByDate = Object.fromEntries(
         cogsDaily.map((row) => [row.date, row]),
     );
+    const topByName = new Map(topProducts.map((item) => [item.name, item]));
+
+    // Tabel harian hanya menampilkan hari beraktivitas agar tidak
+    // menjadi deretan baris nol saat datanya sedikit.
+    const activeDaily = daily.filter(
+        (row) => row.transactions > 0 || row.refunds > 0,
+    );
+    const activeCashDaily = cashFlow.daily.filter(
+        (row) => row.in > 0 || row.out > 0,
+    );
 
     return (
         <>
@@ -159,30 +348,7 @@ export default function ReportIndex({
                             </Link>
                         </Button>
                     ))}
-                    <Button size="sm" variant="outline" asChild>
-                        <a href={exportCsv.url({ query: { period } })} download>
-                            <Download className="size-4" />
-                            Harian CSV
-                        </a>
-                    </Button>
-                    <Button size="sm" variant="outline" asChild>
-                        <a
-                            href={exportCogs.url({ query: { period } })}
-                            download
-                        >
-                            <Download className="size-4" />
-                            HPP CSV
-                        </a>
-                    </Button>
-                    <Button size="sm" variant="outline" asChild>
-                        <a
-                            href={exportCashFlow.url({ query: { period } })}
-                            download
-                        >
-                            <Download className="size-4" />
-                            Kas CSV
-                        </a>
-                    </Button>
+                    <ExportDialog period={period} />
                 </div>
             </div>
 
@@ -248,11 +414,11 @@ export default function ReportIndex({
                                         'var(--chart-2)',
                                         'var(--destructive)',
                                     ]}
-                                    lineWidth={2}
-                                    pointSize={7}
-                                    pointColor="var(--card)"
+                                    lineWidth={2.5}
+                                    pointSize={8}
+                                    pointColor={{ from: 'seriesColor' }}
                                     pointBorderWidth={2}
-                                    pointBorderColor={{ from: 'serieColor' }}
+                                    pointBorderColor="var(--card)"
                                     enableArea
                                     areaOpacity={0.08}
                                     enableGridX={false}
@@ -265,36 +431,22 @@ export default function ReportIndex({
                                     axisLeft={{
                                         tickSize: 0,
                                         tickPadding: 8,
-                                        format: (value) =>
-                                            `${Math.round(Number(value) / 1000)}k`,
+                                        format: compactIDR,
                                     }}
                                     enableSlices="x"
                                     sliceTooltip={({ slice }) => (
-                                        <div className="rounded-md border bg-card px-3 py-2 text-xs shadow-md">
-                                            <p className="mb-1 font-medium">
-                                                {
-                                                    slice.points[0]?.data
-                                                        .xFormatted
-                                                }
-                                            </p>
-                                            {slice.points.map((point) => (
-                                                <p
-                                                    key={point.id}
-                                                    className="flex justify-between gap-4"
-                                                >
-                                                    <span>
-                                                        {point.seriesId}
-                                                    </span>
-                                                    <span className="font-medium tabular-nums">
-                                                        {formatIDR(
-                                                            Number(
-                                                                point.data.y,
-                                                            ),
-                                                        )}
-                                                    </span>
-                                                </p>
-                                            ))}
-                                        </div>
+                                        <ChartTooltip
+                                            title={String(
+                                                slice.points[0]?.data
+                                                    .xFormatted ?? '',
+                                            )}
+                                            rows={slice.points.map((point) => ({
+                                                label: String(point.seriesId),
+                                                value: Number(point.data.y),
+                                                money: true,
+                                                color: point.seriesColor,
+                                            }))}
+                                        />
                                     )}
                                     legends={[
                                         {
@@ -307,34 +459,14 @@ export default function ReportIndex({
                                             symbolSize: 10,
                                         },
                                     ]}
-                                    theme={{
-                                        axis: {
-                                            ticks: {
-                                                text: {
-                                                    fill: 'var(--muted-foreground)',
-                                                    fontSize: 11,
-                                                },
-                                            },
-                                        },
-                                        grid: {
-                                            line: {
-                                                stroke: 'var(--border)',
-                                                strokeDasharray: '3 3',
-                                            },
-                                        },
-                                        legends: {
-                                            text: {
-                                                fill: 'var(--muted-foreground)',
-                                                fontSize: 11,
-                                            },
-                                        },
-                                    }}
+                                    theme={nivoTheme}
                                 />
                             </div>
                         </CardContent>
                     ) : (
                         <CardContent>
                             <EmptyState
+                                className="py-6"
                                 icon={TrendingUp}
                                 title="Belum ada tren"
                                 description="Chart akan muncul setelah ada transaksi."
@@ -404,6 +536,7 @@ export default function ReportIndex({
                     ) : (
                         <CardContent className="pt-0">
                             <EmptyState
+                                className="py-6"
                                 icon={TrendingUp}
                                 title="Belum ada HPP"
                                 description={`Tidak ada penjualan pada periode ${rangeLabel.toLowerCase()}.`}
@@ -478,8 +611,13 @@ export default function ReportIndex({
                         <CardTitle className="text-base font-medium">
                             Arus Kas Harian · {rangeLabel}
                         </CardTitle>
+                        {activeCashDaily.length > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                                {activeCashDaily.length} hari beraktivitas
+                            </p>
+                        )}
                     </CardHeader>
-                    {cashFlow.daily.some((row) => row.in > 0 || row.out > 0) ? (
+                    {activeCashDaily.length > 0 ? (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
@@ -499,7 +637,7 @@ export default function ReportIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {cashFlow.daily.map((row) => (
+                                    {activeCashDaily.map((row) => (
                                         <tr
                                             key={row.date}
                                             className="border-b last:border-0"
@@ -524,6 +662,7 @@ export default function ReportIndex({
                     ) : (
                         <CardContent>
                             <EmptyState
+                                className="py-6"
                                 icon={Wallet}
                                 title="Belum ada arus kas"
                                 description="Belum ada pembayaran atau refund pada periode ini."
@@ -570,29 +709,42 @@ export default function ReportIndex({
                                         tickSize: 0,
                                         tickPadding: 8,
                                         tickRotation: -28,
+                                        format: shortLabel,
                                     }}
-                                    theme={{
-                                        axis: {
-                                            ticks: {
-                                                text: {
-                                                    fill: 'var(--muted-foreground)',
-                                                    fontSize: 10,
-                                                },
-                                            },
-                                        },
-                                        grid: {
-                                            line: {
-                                                stroke: 'var(--border)',
-                                                strokeDasharray: '3 3',
-                                            },
-                                        },
+                                    tooltip={({ indexValue, value, color }) => {
+                                        const item = topByName.get(
+                                            String(indexValue),
+                                        );
+                                        return (
+                                            <ChartTooltip
+                                                title={String(indexValue)}
+                                                rows={[
+                                                    {
+                                                        label: 'Terjual',
+                                                        value: Number(value),
+                                                        color: String(color),
+                                                    },
+                                                    ...(item
+                                                        ? [
+                                                              {
+                                                                  label: 'Pendapatan',
+                                                                  value: item.revenue,
+                                                                  money: true as const,
+                                                              },
+                                                          ]
+                                                        : []),
+                                                ]}
+                                            />
+                                        );
                                     }}
+                                    theme={nivoTheme}
                                 />
                             </div>
                         </CardContent>
                     ) : (
                         <CardContent>
                             <EmptyState
+                                className="py-6"
                                 icon={TrendingUp}
                                 title="Belum ada data"
                                 description="Chart akan muncul setelah ada penjualan."
@@ -631,36 +783,35 @@ export default function ReportIndex({
                                     axisLeft={{
                                         tickSize: 0,
                                         tickPadding: 8,
-                                        format: (value) =>
-                                            `${Math.round(Number(value) / 1000)}k`,
+                                        format: compactIDR,
                                     }}
                                     axisBottom={{
                                         tickSize: 0,
                                         tickPadding: 8,
                                         tickRotation: -25,
+                                        format: shortLabel,
                                     }}
-                                    theme={{
-                                        axis: {
-                                            ticks: {
-                                                text: {
-                                                    fill: 'var(--muted-foreground)',
-                                                    fontSize: 10,
+                                    tooltip={({ indexValue, value, color }) => (
+                                        <ChartTooltip
+                                            title={String(indexValue)}
+                                            rows={[
+                                                {
+                                                    label: 'Pendapatan',
+                                                    value: Number(value),
+                                                    money: true,
+                                                    color: String(color),
                                                 },
-                                            },
-                                        },
-                                        grid: {
-                                            line: {
-                                                stroke: 'var(--border)',
-                                                strokeDasharray: '3 3',
-                                            },
-                                        },
-                                    }}
+                                            ]}
+                                        />
+                                    )}
+                                    theme={nivoTheme}
                                 />
                             </div>
                         </CardContent>
                     ) : (
                         <CardContent>
                             <EmptyState
+                                className="py-6"
                                 icon={TrendingUp}
                                 title="Belum ada kategori"
                                 description="Chart akan muncul setelah ada penjualan."
@@ -676,8 +827,13 @@ export default function ReportIndex({
                         <CardTitle className="text-base font-medium">
                             Tren Harian · {rangeLabel}
                         </CardTitle>
+                        {activeDaily.length > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                                {activeDaily.length} hari beraktivitas
+                            </p>
+                        )}
                     </CardHeader>
-                    {daily.some((row) => row.transactions > 0) ? (
+                    {activeDaily.length > 0 ? (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
@@ -700,7 +856,7 @@ export default function ReportIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {daily.map((row) => (
+                                    {activeDaily.map((row) => (
                                         <tr
                                             key={row.date}
                                             className="border-b last:border-0"
@@ -731,6 +887,7 @@ export default function ReportIndex({
                     ) : (
                         <CardContent className="pt-0">
                             <EmptyState
+                                className="py-6"
                                 icon={TrendingUp}
                                 title="Belum ada transaksi"
                                 description={`Tidak ada penjualan pada periode ${rangeLabel.toLowerCase()}.`}
@@ -777,6 +934,7 @@ export default function ReportIndex({
                         ) : (
                             <CardContent className="pt-0">
                                 <EmptyState
+                                    className="py-6"
                                     icon={TrendingUp}
                                     title="Belum ada data"
                                     description="Produk terlaris akan muncul setelah ada penjualan."
@@ -833,6 +991,7 @@ export default function ReportIndex({
                         ) : (
                             <CardContent className="pt-0">
                                 <EmptyState
+                                    className="py-6"
                                     icon={TrendingUp}
                                     title="Belum ada segmen"
                                     description="Belum ada segmentasi pelanggan. Jalankan customers:segment setelah ada riwayat transaksi pelanggan."
@@ -880,6 +1039,7 @@ export default function ReportIndex({
                     ) : (
                         <CardContent className="pt-0">
                             <EmptyState
+                                className="py-6"
                                 icon={TrendingUp}
                                 title="Belum ada proyeksi"
                                 description="Belum ada hasil forecast. Jalankan forecast:generate untuk menghitung proyeksi dari riwayat penjualan."
@@ -925,6 +1085,7 @@ export default function ReportIndex({
                     ) : (
                         <CardContent className="pt-0">
                             <EmptyState
+                                className="py-6"
                                 icon={TrendingUp}
                                 title="Belum ada pola"
                                 description="Belum ada hasil rekomendasi. Jalankan recommend:generate setelah tersedia transaksi dengan beberapa produk."

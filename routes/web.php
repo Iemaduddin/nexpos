@@ -46,6 +46,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('reports/export/cash-flow', [ReportController::class, 'exportCashFlow'])
         ->middleware('permission:reports.view')
         ->name('reports.export.cash-flow');
+    Route::get('reports/export/pdf', [ReportController::class, 'exportHarianPdf'])
+        ->middleware('permission:reports.view')
+        ->name('reports.export.pdf');
+    Route::get('reports/export/cogs/pdf', [ReportController::class, 'exportCogsPdf'])
+        ->middleware('permission:reports.view')
+        ->name('reports.export.cogs.pdf');
+    Route::get('reports/export/cash-flow/pdf', [ReportController::class, 'exportCashFlowPdf'])
+        ->middleware('permission:reports.view')
+        ->name('reports.export.cash-flow.pdf');
 
     Route::get('ai', [AiChatController::class, 'index'])
         ->middleware('permission:ai.use')

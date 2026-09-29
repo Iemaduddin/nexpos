@@ -37,6 +37,8 @@ export default function Login({ status, canResetPassword }: Props) {
                 {({ processing, errors }) => (
                     <>
                         <div className="grid gap-4">
+                                <InputError className="bg-red-100 text-red-800 rounded-lg px-3 py-2" message={errors.email} />
+
                             <div className="grid gap-2">
                                 <Label htmlFor="email">Email</Label>
                                 <Input
@@ -49,7 +51,6 @@ export default function Login({ status, canResetPassword }: Props) {
                                     autoComplete="email"
                                     placeholder="nama@toko.com"
                                 />
-                                <InputError message={errors.email} />
                             </div>
 
                             <div className="grid gap-2">

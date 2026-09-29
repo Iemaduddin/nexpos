@@ -282,3 +282,30 @@ test('exports require reports.view permission', function () {
     $this->get(route('reports.export.cogs'))->assertForbidden();
     $this->get(route('reports.export.cash-flow'))->assertForbidden();
 });
+
+test('pdf exports download valid pdf documents', function () {
+    $user = User::factory()->create();
+    $user->givePermissionTo(['reports.view']);
+    $master = cogsMasterData();
+    cogsSale($master);
+    $this->actingAs($user);
+
+    foreach ([
+        route('reports.export.pdf', ['period' => 'today']),
+        route('reports.export.cogs.pdf', ['period' => 'today']),
+        route('reports.export.cash-flow.pdf', ['period' => 'today']),
+    ] as $url) {
+        $response = $this->get($url);
+        $response->assertOk();
+        expect($response->headers->get('Content-Type'))->toBe('application/pdf');
+        expect(str_starts_with($response->getContent(), '%PDF-'))->toBeTrue();
+    }
+});
+
+test('pdf exports require reports.view permission', function () {
+    $this->actingAs(User::factory()->create());
+
+    $this->get(route('reports.export.pdf'))->assertForbidden();
+    $this->get(route('reports.export.cogs.pdf'))->assertForbidden();
+    $this->get(route('reports.export.cash-flow.pdf'))->assertForbidden();
+});

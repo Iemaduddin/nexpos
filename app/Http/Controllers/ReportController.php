@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BusinessSetting;
 use App\Services\ForecastService;
 use App\Services\RecommendationService;
+use App\Services\ReportPdf;
 use App\Services\ReportService;
 use App\Services\SegmentationService;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
@@ -81,6 +85,85 @@ class ReportController extends Controller
 
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /**
+     * Shared header data for PDF documents.
+     *
+     * @return array<string, string>
+     */
+    private function pdfMeta(string $title, string $rangeLabel): array
+    {
+        $settings = BusinessSetting::first();
+
+        return [
+            'business' => $settings === null ? (string) config('app.name') : $settings->name,
+            'title' => $title,
+            'rangeLabel' => $rangeLabel,
+            'printedAt' => now()->isoFormat('D MMM YYYY, HH:mm'),
+        ];
+    }
+
+    /**
+     * @return array{period: string, range: array{start: CarbonInterface, end: CarbonInterface, label: string}}
+     */
+    private function pdfRange(Request $request): array
+    {
+        $validated = $request->validate([
+            'period' => ['nullable', 'string', Rule::in(array_keys(ReportService::PERIODS))],
+        ]);
+
+        $period = $validated['period'] ?? 'last_7_days';
+
+        return ['period' => $period, 'range' => app(ReportService::class)->resolveRange($period)];
+    }
+
+    /**
+     * Download the daily breakdown for a period as PDF.
+     */
+    public function exportHarianPdf(Request $request, ReportService $reports, ReportPdf $pdf): HttpResponse
+    {
+        ['period' => $period, 'range' => $range] = $this->pdfRange($request);
+
+        $cogsByDate = [];
+
+        foreach ($reports->cogsDaily($range['start'], $range['end']) as $row) {
+            $cogsByDate[$row['date']] = $row;
+        }
+
+        return $pdf->download('harian', [
+            ...$this->pdfMeta('Laporan Harian', $range['label']),
+            'daily' => $reports->daily($range['start'], $range['end']),
+            'cogsByDate' => $cogsByDate,
+            'overview' => $reports->overview($range['start'], $range['end']),
+        ], sprintf('laporan-harian-%s-%s.pdf', $period, now()->format('Ymd')));
+    }
+
+    /**
+     * Download net HPP and margin per product as PDF.
+     */
+    public function exportCogsPdf(Request $request, ReportService $reports, ReportPdf $pdf): HttpResponse
+    {
+        ['period' => $period, 'range' => $range] = $this->pdfRange($request);
+
+        return $pdf->download('hpp', [
+            ...$this->pdfMeta('Laporan HPP', $range['label']),
+            'rows' => $reports->cogsByProduct($range['start'], $range['end'], 500),
+            'cogs' => $reports->cogsSummary($range['start'], $range['end']),
+        ], sprintf('laporan-hpp-%s-%s.pdf', $period, now()->format('Ymd')));
+    }
+
+    /**
+     * Download daily cash flow as PDF.
+     */
+    public function exportCashFlowPdf(Request $request, ReportService $reports, ReportPdf $pdf): HttpResponse
+    {
+        ['period' => $period, 'range' => $range] = $this->pdfRange($request);
+
+        return $pdf->download('kas', [
+            ...$this->pdfMeta('Laporan Arus Kas', $range['label']),
+            'flow' => $reports->cashFlow($range['start'], $range['end']),
+        ], sprintf('laporan-arus-kas-%s-%s.pdf', $period, now()->format('Ymd')));
     }
 
     /**

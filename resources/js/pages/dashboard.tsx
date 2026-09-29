@@ -13,11 +13,13 @@ import { index as purchasesIndex } from '@/actions/App/Http/Controllers/Purchase
 import { show as showSale } from '@/actions/App/Http/Controllers/SaleController';
 import AnomalyCard from '@/components/anomaly-card';
 import BriefingCard from '@/components/briefing-card';
+import ChartTooltip from '@/components/chart-tooltip';
 import EmptyState from '@/components/empty-state';
 import StatCard from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { compactIDR, nivoTheme, shortLabel } from '@/lib/chart';
 import { formatIDR } from '@/lib/format';
 import { paymentMethodLabel } from '@/lib/sale';
 import { dashboard } from '@/routes';
@@ -47,9 +49,9 @@ function LowStockList({ items }: { items: LowStockItem[] }) {
             {items.map((item) => (
                 <li
                     key={item.id}
-                    className="flex items-center gap-3 px-4 py-2.5"
+                    className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5"
                 >
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 basis-40">
                         <p className="truncate text-sm font-medium">
                             {item.name}
                         </p>
@@ -58,11 +60,19 @@ function LowStockList({ items }: { items: LowStockItem[] }) {
                             {item.threshold}
                         </p>
                     </div>
-                    <Badge variant="destructive" className="tabular-nums">
+                    <Badge
+                        variant="destructive"
+                        className="shrink-0 tabular-nums"
+                    >
                         {item.stock}
                     </Badge>
                     {canPurchase && (
-                        <Button size="sm" variant="outline" asChild>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0"
+                            asChild
+                        >
                             <Link href={purchasesIndex()}>Buat PO</Link>
                         </Button>
                     )}
@@ -91,6 +101,14 @@ export default function Dashboard({
     briefing: string | null;
     anomalies: Anomaly[];
 }) {
+    const topByName = new Map(topProducts.map((item) => [item.name, item]));
+    const hourlyByLabel = new Map(
+        hourlySales.map((item) => [item.label, item]),
+    );
+    const paymentTotal = paymentSummary.reduce(
+        (sum, item) => sum + item.amount,
+        0,
+    );
     const stats = [
         {
             title: 'Omzet Hari Ini',
@@ -146,7 +164,12 @@ export default function Dashboard({
                                     keys={['terjual']}
                                     indexBy="product"
                                     layout="horizontal"
-                                    margin={{ top: 8, right: 16, bottom: 28, left: 112 }}
+                                    margin={{
+                                        top: 8,
+                                        right: 16,
+                                        bottom: 28,
+                                        left: 96,
+                                    }}
                                     padding={0.35}
                                     valueScale={{ type: 'linear' }}
                                     indexScale={{ type: 'band', round: true }}
@@ -167,29 +190,35 @@ export default function Dashboard({
                                     axisLeft={{
                                         tickSize: 0,
                                         tickPadding: 8,
+                                        format: shortLabel,
                                     }}
-                                    theme={{
-                                        axis: {
-                                            ticks: {
-                                                text: {
-                                                    fill: 'var(--muted-foreground)',
-                                                    fontSize: 11,
-                                                },
-                                            },
-                                            legend: {
-                                                text: {
-                                                    fill: 'var(--muted-foreground)',
-                                                    fontSize: 11,
-                                                },
-                                            },
-                                        },
-                                        grid: {
-                                            line: {
-                                                stroke: 'var(--border)',
-                                                strokeDasharray: '3 3',
-                                            },
-                                        },
+                                    tooltip={({ indexValue, value, color }) => {
+                                        const item = topByName.get(
+                                            String(indexValue),
+                                        );
+                                        return (
+                                            <ChartTooltip
+                                                title={String(indexValue)}
+                                                rows={[
+                                                    {
+                                                        label: 'Terjual',
+                                                        value: Number(value),
+                                                        color: String(color),
+                                                    },
+                                                    ...(item
+                                                        ? [
+                                                              {
+                                                                  label: 'Pendapatan',
+                                                                  value: item.revenue,
+                                                                  money: true as const,
+                                                              },
+                                                          ]
+                                                        : []),
+                                                ]}
+                                            />
+                                        );
                                     }}
+                                    theme={nivoTheme}
                                 />
                             </div>
                         ) : (
@@ -237,7 +266,12 @@ export default function Dashboard({
                                 data={hourlySales}
                                 keys={['transactions']}
                                 indexBy="label"
-                                margin={{ top: 8, right: 12, bottom: 32, left: 38 }}
+                                margin={{
+                                    top: 8,
+                                    right: 12,
+                                    bottom: 32,
+                                    left: 38,
+                                }}
                                 padding={0.25}
                                 valueScale={{ type: 'linear' }}
                                 indexScale={{ type: 'band', round: true }}
@@ -247,29 +281,44 @@ export default function Dashboard({
                                 enableGridX={false}
                                 axisTop={null}
                                 axisRight={null}
-                                axisLeft={{ tickSize: 0, tickPadding: 8 }}
+                                axisLeft={{
+                                    tickSize: 0,
+                                    tickPadding: 8,
+                                    format: compactIDR,
+                                }}
                                 axisBottom={{
                                     tickSize: 0,
                                     tickPadding: 8,
                                     tickRotation: -45,
                                     tickValues: 8,
                                 }}
-                                theme={{
-                                    axis: {
-                                        ticks: {
-                                            text: {
-                                                fill: 'var(--muted-foreground)',
-                                                fontSize: 10,
-                                            },
-                                        },
-                                    },
-                                    grid: {
-                                        line: {
-                                            stroke: 'var(--border)',
-                                            strokeDasharray: '3 3',
-                                        },
-                                    },
+                                tooltip={({ indexValue, value, color }) => {
+                                    const item = hourlyByLabel.get(
+                                        String(indexValue),
+                                    );
+                                    return (
+                                        <ChartTooltip
+                                            title={`Jam ${String(indexValue)}`}
+                                            rows={[
+                                                {
+                                                    label: 'Transaksi',
+                                                    value: Number(value),
+                                                    color: String(color),
+                                                },
+                                                ...(item
+                                                    ? [
+                                                          {
+                                                              label: 'Pendapatan',
+                                                              value: item.revenue,
+                                                              money: true as const,
+                                                          },
+                                                      ]
+                                                    : []),
+                                            ]}
+                                        />
+                                    );
                                 }}
+                                theme={nivoTheme}
                             />
                         </div>
                     </CardContent>
@@ -286,26 +335,72 @@ export default function Dashboard({
                             <>
                                 <div className="h-52 w-full">
                                     <ResponsivePie
-                                    data={paymentSummary.map((item) => ({
-                                        id: item.method,
-                                        label:
-                                            paymentMethodLabel[item.method] ??
-                                            item.method,
-                                        value: item.amount,
-                                    }))}
-                                    margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                                    innerRadius={0.62}
-                                    padAngle={1.5}
-                                    cornerRadius={3}
-                                    activeOuterRadiusOffset={5}
-                                    colors={['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)']}
-                                    borderWidth={0}
-                                    enableArcLinkLabels={false}
-                                    arcLabelsSkipAngle={12}
-                                    arcLabelsTextColor="var(--card)"
+                                        data={paymentSummary.map((item) => ({
+                                            id: item.method,
+                                            label:
+                                                paymentMethodLabel[
+                                                    item.method
+                                                ] ?? item.method,
+                                            value: item.amount,
+                                        }))}
+                                        margin={{
+                                            top: 8,
+                                            right: 8,
+                                            bottom: 8,
+                                            left: 8,
+                                        }}
+                                        innerRadius={0.62}
+                                        padAngle={1.5}
+                                        cornerRadius={3}
+                                        activeOuterRadiusOffset={5}
+                                        colors={[
+                                            'var(--chart-1)',
+                                            'var(--chart-2)',
+                                            'var(--chart-3)',
+                                            'var(--chart-4)',
+                                            'var(--chart-5)',
+                                        ]}
+                                        borderWidth={0}
+                                        enableArcLinkLabels={false}
+                                        arcLabelsSkipAngle={12}
+                                        arcLabelsTextColor="var(--card)"
+                                        arcLabel={(datum) =>
+                                            `${Math.round((Number(datum.value) / Math.max(1, paymentTotal)) * 100)}%`
+                                        }
+                                        tooltip={({ datum }) => (
+                                            <ChartTooltip
+                                                title={String(datum.label)}
+                                                rows={[
+                                                    {
+                                                        label: 'Nominal',
+                                                        value: Number(
+                                                            datum.value,
+                                                        ),
+                                                        money: true,
+                                                        color: String(
+                                                            datum.color,
+                                                        ),
+                                                    },
+                                                    {
+                                                        label: 'Porsi (%)',
+                                                        value: Math.round(
+                                                            (Number(
+                                                                datum.value,
+                                                            ) /
+                                                                Math.max(
+                                                                    1,
+                                                                    paymentTotal,
+                                                                )) *
+                                                                100,
+                                                        ),
+                                                    },
+                                                ]}
+                                            />
+                                        )}
+                                        theme={nivoTheme}
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-3">
+                                <div className="grid grid-cols-1 gap-x-4 gap-y-2 border-t pt-3 sm:grid-cols-2">
                                     {paymentSummary.map((item, index) => (
                                         <div
                                             key={item.method}
@@ -319,8 +414,9 @@ export default function Dashboard({
                                                     }}
                                                 />
                                                 <span className="truncate text-muted-foreground">
-                                                    {paymentMethodLabel[item.method] ??
-                                                        item.method}
+                                                    {paymentMethodLabel[
+                                                        item.method
+                                                    ] ?? item.method}
                                                 </span>
                                             </span>
                                             <span className="shrink-0 font-medium tabular-nums">
@@ -339,7 +435,6 @@ export default function Dashboard({
                         )}
                     </CardContent>
                 </Card>
-
             </div>
 
             <BriefingCard initialBriefing={briefing} />
@@ -354,8 +449,8 @@ export default function Dashboard({
                         </CardTitle>
                     </CardHeader>
                     {topProducts.length > 0 ? (
-                        <CardContent className="p-0">
-                            <table className="w-full text-sm">
+                        <CardContent className="overflow-x-auto p-0">
+                            <table className="w-full min-w-80 text-sm">
                                 <tbody>
                                     {topProducts.map((product, i) => (
                                         <tr
@@ -397,62 +492,14 @@ export default function Dashboard({
 
                 <div className="grid content-start gap-4">
                     <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base font-medium">
-                                Stok Menipis
-                            </CardTitle>
-                        </CardHeader>
-                        {lowStock.length > 0 ? (
-                            <CardContent className="p-0">
-                                <table className="w-full text-sm">
-                                    <tbody>
-                                        {lowStock.map((item) => (
-                                            <tr
-                                                key={item.id}
-                                                className="border-t first:border-0"
-                                            >
-                                                <td className="px-4 py-2.5">
-                                                    <p className="font-medium">
-                                                        {item.name}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {item.sku}
-                                                    </p>
-                                                </td>
-                                                <td className="px-4 py-2.5 text-right tabular-nums">
-                                                    <span className="font-medium">
-                                                        {item.stock}
-                                                    </span>
-                                                    <span className="text-muted-foreground">
-                                                        {' '}
-                                                        / batas {item.threshold}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </CardContent>
-                        ) : (
-                            <CardContent className="pt-0">
-                                <EmptyState
-                                    icon={TriangleAlert}
-                                    title="Semua stok aman"
-                                    description="Produk dengan stok di bawah batas minimum akan muncul di sini."
-                                />
-                            </CardContent>
-                        )}
-                    </Card>
-
-                    <Card>
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle className="text-base font-medium">
                                 Transaksi Terakhir
                             </CardTitle>
                         </CardHeader>
                         {recentSales.length > 0 ? (
-                            <CardContent className="p-0">
-                                <table className="w-full text-sm">
+                            <CardContent className="overflow-x-auto p-0">
+                                <table className="w-full min-w-72 text-sm">
                                     <tbody>
                                         {recentSales.map((sale) => (
                                             <tr
