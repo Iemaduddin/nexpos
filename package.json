@@ -4,11 +4,9 @@
     "type": "module",
     "scripts": {
         "wayfinder": "php artisan wayfinder:generate --with-form",
-        "build": "vp build",
-        "build:ssr": "vp build && vp build --ssr",
-        "dev": "vp dev",
-        "check": "vp check",
-        "check:fix": "vp check --fix",
+        "build": "vite build",
+        "build:ssr": "vite build && vite build --ssr",
+        "dev": "vite",
         "types:check": "tsc --noEmit"
     },
     "dependencies": {
@@ -39,10 +37,8 @@
     },
     "devDependencies": {
         "@laravel/vite-plugin-wayfinder": "^0.1.3",
-        "@rolldown/plugin-babel": "^0.2.3",
         "@types/node": "^22.13.5",
-        "babel-plugin-react-compiler": "^1.0.0",
-        "vite-plus": "0.3.0"
+        "babel-plugin-react-compiler": "^1.0.0"
     },
     "optionalDependencies": {
         "@laravel/multiplex": "^0.4.1",

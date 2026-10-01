@@ -10,14 +10,59 @@ inventory, financial calculation, dan eksekusi AI tool.
 ## Fitur Utama
 
 - POS dengan pencarian barcode, cart, discount, split payment, kembalian, dan receipt.
+- PWA kasir: installable, snapshot katalog offline, dan antrean checkout IndexedDB yang tersinkron otomatis (idempotent).
 - Master data produk, variant, category, brand, unit, customer, supplier, dan store.
 - Ledger-based inventory dengan purchase, stock adjustment, return, dan audit history.
-- Cash session dengan opening dan closing balance per store.
+- Pembelian dengan riwayat pembayaran bertanggal (`purchase_payments`) dan status hutang.
+- Cash session dengan opening/closing balance, ekspektasi laci, selisih, dan halaman rekonsiliasi per sesi.
 - Sales return dengan proportional refund dan pengembalian stok.
 - Report dengan KPI, daily trend, produk terlaris, inventory value, dan chart.
+- Laporan HPP (kotor, retur, bersih, marjin) per produk dan per hari.
+- Laporan arus kas basis kas (masuk, keluar pemasok, refund, saldo awal/akhir) + tabel harian.
+- Export CSV dan PDF (dompdf) untuk laporan harian, HPP, dan arus kas via satu dialog Export.
+- Dokumen faktur dengan OCR antrean, verifikasi menjadi purchase, retry, dan reject.
 - AI assistant berbahasa Indonesia menggunakan Ollama dan Qwen3.
-- Deterministic AI business tool untuk sales, inventory, customer, purchase, dan report.
+- Deterministic AI business tool untuk sales, profit, HPP, arus kas, inventory, customer, purchase, dan report.
 - Python ML service untuk forecasting, anomaly detection, recommendation, segmentation, dan OCR.
+- Health endpoint (`GET /health`) untuk monitoring database, antrean, dan ML service.
+
+## Preview
+
+### Kasir POS
+
+![Kasir POS dengan cart dan pembayaran](docs/preview/01-pos.png)
+
+Cart, diskon, split payment, dan kembalian — tetap berjalan offline melalui antrean idempotent.
+
+### Dashboard
+
+![Dashboard bisnis](docs/preview/02-dashboard.png)
+
+Omset, laba, tren, produk terlaris, dan stok menipis dalam satu layar.
+
+### Laporan HPP dan Arus Kas
+
+![Laporan HPP dan arus kas](docs/preview/03-reports.png)
+
+HPP bersih, marjin kotor, dan arus kas basis kas dengan export CSV/PDF.
+
+### AI Assistant
+
+![AI assistant Bahasa Indonesia](docs/preview/04-ai.png)
+
+Tanya jawab Bahasa Indonesia di atas angka riil dari business tool — tanpa halusinasi.
+
+### Rekonsiliasi Sesi Kas
+
+![Rincian sesi kas](docs/preview/05-session.png)
+
+Ekspektasi laci vs uang aktual per sesi, lengkap dengan selisihnya.
+
+### Inventory/Product Management
+
+![Halaman Manajemen data produk](docs/preview/06-inventory.png)
+
+Data produk yang dapat dikelola oleh Admin yang akan muncul up to date di halaman kasir
 
 ## Technology Stack
 
@@ -26,30 +71,12 @@ inventory, financial calculation, dan eksekusi AI tool.
 | Backend | Laravel 13, PHP 8.3 |
 | Frontend | React, TypeScript, Inertia.js v3, Tailwind CSS |
 | UI dan chart | shadcn/ui, Lucide, Nivo |
-| Database | PostgreSQL atau SQLite untuk local development |
+| Database | PostgreSQL |
 | Permission | Spatie Laravel Permission |
+| PDF export | dompdf (server-side, tanpa browser) |
 | LLM | Ollama dengan Qwen3 |
 | ML service | Python, FastAPI, pandas, NumPy, scikit-learn, statsmodels |
 
-## Arsitektur
-
-```text
-Browser
-  |
-  v
-React + Inertia
-  |
-  v
-Laravel application --------------------> PostgreSQL / SQLite
-  |                                        business source of truth
-  |
-  +--> Ollama / Qwen3
-  |      |
-  |      +--> registered Laravel business tools
-  |
-  +--> FastAPI ML service :8001
-         statistical and machine-learning computations only
-```
 
 LLM tidak pernah terhubung langsung ke database, mengeksekusi SQL, atau
 menentukan authorization user. Laravel melakukan validation dan authorization
@@ -256,40 +283,31 @@ Jalankan seluruh project check sebelum publish perubahan:
 
 ```powershell
 php artisan test --compact
-vendor/bin/pint --format agent
+vendor/bin/pint --dirty --format agent
 vendor/bin/phpstan analyse --no-progress
-npm run check
 npm run types:check
 npm run build
 ```
 
+Gunakan `--dirty` pada Pint agar hanya file yang diubah yang diformat.
+
 ## Struktur Project
 
 ```text
-app/              Laravel controller, model, policy, service, dan AI tool
+app/              controller, model, policy, service, job, dan AI tool
+app/Jobs/         antrean ML (ml), briefing (ai), dan OCR (ocr)
+app/Support/      helper lintas service (mis. Money untuk Rupiah)
 database/         migration, factory, dan seeder
+docs/             panduan deployment produksi
+lang/             terjemahan Bahasa Indonesia (mis. pesan login)
 ml/               FastAPI ML service dan statistical workload
-resources/js/     Inertia React page, component, layout, dan type
+public/           sw.js, manifest, dan ikon PWA
+resources/js/     Inertia React page, component, layout, lib, dan type
+resources/views/  Blade untuk dokumen PDF (laporan)
 routes/           web, settings, dan console route
+scripts/          tooling dev (mis. generate ikon PWA)
 tests/            Pest feature dan unit test
 ```
-## Roadmap
-
-Foundation yang sudah tersedia:
-
-- Authentication, role, dan permission
-- Master data dan store management
-- Inventory ledger, purchase, adjustment, dan return
-- POS, cash session, payment, dan receipt
-- Report, dashboard, chart, dan business settings
-- AI assistant, deterministic business tool, dan daily briefing
-- ML forecasting, anomaly detection, recommendation, segmentation, dan OCR foundation
-
-Prioritas berikutnya:
-
-- Memperluas operational dan financial reporting (arus kas, HPP, rekonsiliasi sesi kas)
-- Menambahkan dokumentasi production deployment dan observability
-- Mengevaluasi Redis + Horizon saat beban antrean membutuhkan (saat ini database driver sudah cukup)
 
 ## License
 
